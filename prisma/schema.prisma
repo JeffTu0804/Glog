@@ -1,0 +1,250 @@
+// =============================================================================
+// glog — 飯店後勤 ERP Prisma Schema
+// 多租戶架構：所有核心業務表均透過 tenantId 關聯 Tenant，確保租戶資料嚴格隔離
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// 員工角色：決定後台操作權限與可見功能範圍
+enum UserRole {
+  ADMIN         // 系統管理員：全權管理租戶設定與人員
+  FRONT_DESK    // 前台人員：可建立報修工單、查看資產狀態
+  HOUSEKEEPING  // 房務人員：可回報客房問題、觸發清潔相關工單
+  ENGINEER      // 工程師：接收派單、執行維修並回報完工
+}
+
+/// 員工即時狀態：供自動派單演算法判斷工程師是否可接單
+enum UserStatus {
+  IDLE  // 閒置：可接受新工單指派
+  BUSY  // 忙碌：已有進行中工單，暫不派單
+}
+
+/// 資產類型：區分客房與各類硬體設施
+enum AssetType {
+  ROOM       // 客房
+  EQUIPMENT  // 設備（空調、電梯、熱水器等）
+  FACILITY   // 公共設施（健身房、游泳池等）
+}
+
+/// 資產運作狀態：追蹤設備/客房的可用性
+enum AssetStatus {
+  OPERATIONAL   // 正常運作
+  MAINTENANCE   // 維護中（有進行中工單）
+  OUT_OF_ORDER  // 故障停用
+}
+
+/// 工單生命週期狀態：落實「觸發 → 派單 → 執行 → 結案」閉環
+enum TicketStatus {
+  OPEN         // 新建：等待派單
+  ASSIGNED     // 已指派：工程師已接單
+  IN_PROGRESS  // 進行中：工程師現場作業
+  COMPLETED    // 已完工：等待財務結案（扣庫存、寫入 CostLog）
+  CLOSED       // 已結案：閉環完成
+  CANCELLED    // 已取消
+}
+
+/// 工單優先級：影響派單排序與 SLA 時限
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/// SaaS 訂閱方案
+enum SubscriptionPlan {
+  TRIAL       // 試用
+  STARTER     // 入門
+  PRO         // 專業
+  ENTERPRISE  // 企業
+}
+
+/// 租戶訂閱狀態
+enum SubscriptionStatus {
+  ACTIVE     // 正常使用中
+  TRIAL      // 試用中
+  PAST_DUE   // 逾期未付款
+  SUSPENDED  // 已暫停服務
+  CANCELLED  // 已取消
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+/// 平台管理員（PlatformAdmin）— glog SaaS 營運人員，不隸屬任何租戶，可跨租戶查詢
+model PlatformAdmin {
+  id             String   @id @default(cuid())
+  supabaseUserId String   @unique /// 對應 Supabase Auth UUID
+  email          String   @unique
+  name           String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Models (Tenant-scoped)
+// ---------------------------------------------------------------------------
+
+/// 租戶（Tenant）— 飯店或飯店集團的主表，為多租戶隔離的根節點
+model Tenant {
+  id                 String             @id @default(cuid())
+  name               String             /// 飯店或集團顯示名稱
+  slug               String             @unique /// URL 友善識別碼，全系統唯一
+  contactEmail       String?            /// 飯店聯絡信箱
+  plan               SubscriptionPlan   @default(TRIAL) /// 訂閱方案
+  subscriptionStatus SubscriptionStatus @default(TRIAL) /// 訂閱狀態
+  subscriptionEndsAt DateTime?          /// 訂閱到期日
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // --- 一對多關聯：刪除租戶時級聯清除所有子資料 ---
+  users              User[]
+  assets             Asset[]
+  maintenanceTickets MaintenanceTicket[]
+  inventoryItems     Inventory[]
+  costLogs           CostLog[]
+}
+
+/// 員工（User）— 綁定 Supabase Auth，隸屬單一租戶
+model User {
+  id             String     @id @default(cuid())
+  tenantId       String     /// 所屬租戶 ID（多租戶隔離鍵）
+  supabaseUserId String     @unique /// 對應 Supabase Auth 的 UUID，全系統唯一
+  email          String     /// 員工電子郵件
+  name           String     /// 員工顯示名稱
+  role           UserRole   /// 角色權限
+  status         UserStatus @default(IDLE) /// 即時狀態（閒置/忙碌），供派單演算法使用
+  skills         String[]   /// 專業標籤（如 "plumbing", "electrical", "hvac"），供智能派單匹配
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // --- 多對一：員工隸屬單一租戶 ---
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // --- 一對多：員工作為工單觸發人或被指派的工程師 ---
+  triggeredTickets MaintenanceTicket[] @relation("TicketTriggeredBy")
+  assignedTickets  MaintenanceTicket[] @relation("TicketAssignedTo")
+
+  @@unique([tenantId, email]) /// 同一租戶內 email 不可重複
+  @@index([tenantId])
+  @@index([tenantId, role, status]) /// 加速派單查詢：依角色與狀態篩選可用工程師
+}
+
+/// 資產（Asset）— 客房或硬體設備，追蹤運作狀態
+model Asset {
+  id          String      @id @default(cuid())
+  tenantId    String      /// 所屬租戶 ID（多租戶隔離鍵）
+  name        String      /// 資產名稱（如「101 號房」、「B 棟空調主機」）
+  code        String      /// 資產編號（如房號、設備序號），租戶內唯一
+  type        AssetType   /// 資產類型
+  status      AssetStatus @default(OPERATIONAL) /// 當前運作狀態
+  location    String?     /// 物理位置（樓層、棟別等）
+  description String?     /// 備註說明
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // --- 多對一：資產隸屬單一租戶 ---
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // --- 一對多：此資產關聯的所有維修工單 ---
+  maintenanceTickets MaintenanceTicket[]
+
+  @@unique([tenantId, code]) /// 同一租戶內資產編號不可重複
+  @@index([tenantId])
+  @@index([tenantId, status]) /// 加速查詢特定狀態的資產（如所有故障房）
+}
+
+/// 維修工單（MaintenanceTicket）— 核心業務實體，串連觸發、派單、執行、結案閉環
+model MaintenanceTicket {
+  id            String         @id @default(cuid())
+  tenantId      String         /// 所屬租戶 ID（多租戶隔離鍵）
+  assetId       String         /// 關聯資產
+  triggeredById String         /// 觸發人（建立工單的員工）
+  assignedToId  String?        /// 指派工程師（派單後填入，待派單時為 null）
+  title         String         /// 工單標題
+  description   String?        /// 問題描述
+  status        TicketStatus   @default(OPEN) /// 工單當前狀態
+  priority      TicketPriority @default(MEDIUM) /// 優先級
+  triggeredAt   DateTime       @default(now()) /// 觸發時間
+  assignedAt    DateTime?      /// 派單時間
+  completedAt   DateTime?      /// 完工時間
+  closedAt      DateTime?      /// 結案時間（含庫存扣除與成本結算）
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // --- 多對一：工單隸屬單一租戶 ---
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // --- 多對一：工單關聯的資產 ---
+  asset Asset @relation(fields: [assetId], references: [id])
+
+  // --- 多對一：觸發此工單的員工 ---
+  triggeredBy User @relation("TicketTriggeredBy", fields: [triggeredById], references: [id])
+
+  // --- 多對一：被指派執行的工程師（可為空） ---
+  assignedTo User? @relation("TicketAssignedTo", fields: [assignedToId], references: [id])
+
+  // --- 一對多：工單結案時產生的成本紀錄 ---
+  costLogs CostLog[]
+
+  @@index([tenantId])
+  @@index([tenantId, status]) /// 加速依狀態篩選工單列表
+  @@index([assignedToId]) /// 加速查詢工程師的工單
+  @@index([assetId]) /// 加速查詢特定資產的維修歷史
+}
+
+/// 耗材庫存（Inventory）— 後勤備品管理，工單結案時透過 Transaction 扣除
+model Inventory {
+  id           String   @id @default(cuid())
+  tenantId     String   /// 所屬租戶 ID（多租戶隔離鍵）
+  name         String   /// 耗材名稱
+  sku          String?  /// 料號（Stock Keeping Unit），租戶內唯一
+  category     String?  /// 分類（如「衛浴」、「電器零件」）
+  quantity     Int      @default(0) /// 目前庫存量
+  unit         String   @default("個") /// 計量單位
+  unitCost     Decimal  @db.Decimal(10, 2) /// 單位成本（新台幣或指定幣別）
+  reorderLevel Int      @default(0) /// 安全庫存警戒線，低於此值觸發補貨提醒
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // --- 多對一：庫存項目隸屬單一租戶 ---
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sku]) /// 同一租戶內料號不可重複
+  @@index([tenantId])
+}
+
+/// 成本紀錄（CostLog）— 工單結案時寫入，追蹤維護財務損益
+model CostLog {
+  id          String   @id @default(cuid())
+  tenantId    String   /// 所屬租戶 ID（多租戶隔離鍵）
+  ticketId    String?  /// 關聯工單（結案時產生，獨立成本紀錄可為 null）
+  description String   /// 成本項目說明（如「更換水龍頭零件 × 2」）
+  amount      Decimal  @db.Decimal(10, 2) /// 金額
+  category    String?  /// 成本分類（如「耗材」、「人工」、「外包」）
+  recordedAt  DateTime @default(now()) /// 成本發生時間
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // --- 多對一：成本紀錄隸屬單一租戶 ---
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  // --- 多對一：關聯的工單（可選） ---
+  ticket MaintenanceTicket? @relation(fields: [ticketId], references: [id])
+
+  @@index([tenantId])
+  @@index([ticketId]) /// 加速查詢特定工單的所有成本
+}

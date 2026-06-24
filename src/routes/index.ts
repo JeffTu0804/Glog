@@ -1,0 +1,20 @@
+import { Router } from "express";
+import { authenticate } from "../middleware/auth.js";
+import { assetsRouter } from "./assets.js";
+import { costLogsRouter } from "./cost-logs.js";
+import { inventoryRouter } from "./inventory.js";
+import { maintenanceTicketsRouter } from "./maintenance-tickets.js";
+import { meRouter } from "./me.js";
+import { usersRouter } from "./users.js";
+
+export const apiRouter = Router();
+
+// 所有 /api/v1 路由均需通過 JWT 驗證與 tenantId 綁定
+apiRouter.use(authenticate);
+
+apiRouter.use("/me", meRouter);
+apiRouter.use("/maintenance-tickets", maintenanceTicketsRouter);
+apiRouter.use("/assets", assetsRouter);
+apiRouter.use("/users", usersRouter);
+apiRouter.use("/inventory", inventoryRouter);
+apiRouter.use("/cost-logs", costLogsRouter);

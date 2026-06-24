@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+frontend/.env
+*.log
+frontend/dist/
+frontend/node_modules/
