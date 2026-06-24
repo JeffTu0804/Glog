@@ -146,7 +146,7 @@ export function TicketDetailPage() {
 
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
           <div>
-            <dt className="text-xs font-medium text-slate-500">資產</dt>
+            <dt className="text-xs font-medium text-slate-500">地點</dt>
             <dd className="mt-1 text-sm text-slate-900">
               {ticket.asset.code} — {ticket.asset.name}
             </dd>

@@ -134,6 +134,11 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  seedStarterAssets: (token: string) =>
+    request<{ assets: Asset[]; created: number }>("/assets/seed-starter", token, {
+      method: "POST",
+    }),
+
   createInventory: (
     token: string,
     body: { name: string; sku?: string; quantity?: number; unitCost: number },

@@ -51,6 +51,16 @@ export function AssetsPage() {
     void load();
   }, []);
 
+  async function handleSeedRooms() {
+    try {
+      const token = await getToken();
+      await api.seedStarterAssets(token);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "載入客房失敗");
+    }
+  }
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
     try {
@@ -70,17 +80,26 @@ export function AssetsPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">資產管理</h1>
-          <p className="mt-1 text-sm text-slate-500">客房與設備清單</p>
+          <h1 className="text-2xl font-bold text-slate-900">地點管理</h1>
+          <p className="mt-1 text-sm text-slate-500">客房與公共區域（10 層 × 每層 10 間）</p>
         </div>
         {isAdmin && (
-          <button
-            type="button"
-            onClick={() => setShowForm(!showForm)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            + 新增資產
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void handleSeedRooms()}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+            >
+              載入 100 間客房
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(!showForm)}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              + 新增地點
+            </button>
+          </div>
         )}
       </div>
 

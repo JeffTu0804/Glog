@@ -1,19 +1,27 @@
-import { type FormEvent, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { type FormEvent, useEffect, useState } from "react";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { AuthFooterLink, OAuthButtons } from "../components/OAuthButtons";
 import { useAuth, type LoginTarget } from "../context/AuthContext";
 
 export function LoginPage() {
   const { login, session, isPlatformAdmin, profile, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [target, setTarget] = useState<LoginTarget>("hotel");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    const oauthError = searchParams.get("error");
+    if (oauthError) setError(oauthError);
+  }, [searchParams]);
+
   if (!loading && session) {
     if (isPlatformAdmin) return <Navigate to="/platform" replace />;
     if (profile) return <Navigate to="/dashboard" replace />;
+    if (target === "hotel") return <Navigate to="/register/complete" replace />;
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -33,7 +41,8 @@ export function LoginPage() {
       } else if (msg.includes("非平台管理員")) {
         setError("此帳號不是平台管理員，請切換到「飯店員工」登入");
       } else if (msg.includes("尚未在系統中註冊")) {
-        setError("帳號已通過驗證，但尚未加入飯店系統，請執行 npm run db:seed");
+        setError("帳號已通過驗證，但尚未建立飯店，請先完成註冊");
+        navigate("/register/complete");
       } else {
         setError(msg);
       }
@@ -115,6 +124,13 @@ export function LoginPage() {
             {submitting ? "登入中…" : "登入"}
           </button>
         </form>
+
+        {target === "hotel" && (
+          <>
+            <OAuthButtons onError={setError} disabled={submitting} />
+            <AuthFooterLink mode="login" />
+          </>
+        )}
       </div>
     </div>
   );

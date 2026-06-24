@@ -54,10 +54,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadIdentity = useCallback(
     async (accessToken: string, preferredTarget?: LoginTarget) => {
       if (preferredTarget) {
-        const identity = await resolveIdentity(accessToken, preferredTarget);
-        setProfile(identity.profile);
-        setPlatformAdmin(identity.platformAdmin);
-        return preferredTarget;
+        try {
+          const identity = await resolveIdentity(accessToken, preferredTarget);
+          setProfile(identity.profile);
+          setPlatformAdmin(identity.platformAdmin);
+          return preferredTarget;
+        } catch (err) {
+          if (preferredTarget === "hotel") {
+            setProfile(null);
+            setPlatformAdmin(null);
+            return "hotel" as const;
+          }
+          throw err;
+        }
       }
 
       try {
@@ -66,10 +75,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         return "platform" as const;
       } catch {
-        const { user } = await api.getMe(accessToken);
-        setProfile(user);
-        setPlatformAdmin(null);
-        return "hotel" as const;
+        try {
+          const { user } = await api.getMe(accessToken);
+          setProfile(user);
+          setPlatformAdmin(null);
+          return "hotel" as const;
+        } catch {
+          setProfile(null);
+          setPlatformAdmin(null);
+          return "hotel" as const;
+        }
       }
     },
     [],

@@ -7,7 +7,9 @@ import { CostLogsPage } from "./pages/CostLogsPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { LandingPage } from "./pages/LandingPage";
+import { AuthCallbackPage, CompleteRegistrationPage } from "./pages/AuthCallbackPage";
 import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
 import { TicketDetailPage } from "./pages/TicketDetailPage";
 import { TicketsPage } from "./pages/TicketsPage";
 import { UsersPage } from "./pages/UsersPage";
@@ -27,7 +29,7 @@ function HotelProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!session) return <Navigate to="/login" replace />;
   if (isPlatformAdmin && !profile) return <Navigate to="/platform" replace />;
-  if (!profile) return <Navigate to="/login" replace />;
+  if (!profile) return <Navigate to="/register/complete" replace />;
 
   return <>{children}</>;
 }
@@ -62,6 +64,9 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/register/complete" element={<CompleteRegistrationPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
 
       <Route
         element={

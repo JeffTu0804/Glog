@@ -10,7 +10,7 @@ const NAV_ITEMS: {
 }[] = [
   { to: "/dashboard", label: "總覽" },
   { to: "/tickets", label: "工單" },
-  { to: "/assets", label: "資產" },
+  { to: "/assets", label: "地點" },
   { to: "/inventory", label: "庫存" },
   { to: "/costs", label: "成本" },
   { to: "/users", label: "員工", adminOnly: true },
