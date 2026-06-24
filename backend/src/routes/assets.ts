@@ -1,6 +1,8 @@
 import { UserRole } from "@prisma/client";
 import { Router } from "express";
 import { requireRole } from "../middleware/requireRole.js";
+import { prisma } from "../lib/prisma.js";
+import { seedStarterAssets } from "../services/tenantBootstrapService.js";
 import {
   createAsset,
   findAssetForTenant,
@@ -17,6 +19,25 @@ import {
 } from "../utils/validators.js";
 
 export const assetsRouter = Router();
+
+/**
+ * POST /api/v1/assets/seed-starter
+ * 一鍵建立 10 層 × 10 間客房（管理員）
+ */
+assetsRouter.post(
+  "/seed-starter",
+  requireRole(UserRole.ADMIN),
+  asyncHandler(async (req, res) => {
+    const tenantId = req.user!.tenantId;
+
+    await prisma.$transaction(async (tx) => {
+      await seedStarterAssets(tx, tenantId);
+    });
+
+    const assets = await listAssets(tenantId, {});
+    res.status(201).json({ assets, created: assets.length });
+  }),
+);
 
 /**
  * GET /api/v1/assets

@@ -1,4 +1,5 @@
 import { PrismaClient, SubscriptionPlan, SubscriptionStatus, UserRole } from "@prisma/client";
+import { buildHotelRoomAssets } from "../src/services/tenantBootstrapService.js";
 
 const prisma = new PrismaClient();
 
@@ -74,32 +75,12 @@ async function main() {
     );
   }
 
-  const assets = await Promise.all([
-    prisma.asset.upsert({
-      where: { tenantId_code: { tenantId: tenant.id, code: "101" } },
-      update: {},
-      create: {
-        tenantId: tenant.id,
-        name: "101 號房",
-        code: "101",
-        type: "ROOM",
-        location: "1F",
-      },
-    }),
-    prisma.asset.upsert({
-      where: { tenantId_code: { tenantId: tenant.id, code: "HVAC-A1" } },
-      update: {},
-      create: {
-        tenantId: tenant.id,
-        name: "A 棟空調主機",
-        code: "HVAC-A1",
-        type: "EQUIPMENT",
-        location: "RF",
-      },
-    }),
-  ]);
+  const assets = await prisma.asset.createMany({
+    data: buildHotelRoomAssets().map((asset) => ({ tenantId: tenant.id, ...asset })),
+    skipDuplicates: true,
+  });
 
-  console.log(`✅ Assets: ${assets.length} 筆`);
+  console.log(`✅ 地點（客房）: ${assets.count} 筆`);
 
   const inventory = await prisma.inventory.upsert({
     where: { tenantId_sku: { tenantId: tenant.id, sku: "FAUCET-001" } },
