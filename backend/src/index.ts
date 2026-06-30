@@ -1,4 +1,5 @@
 import "dotenv/config";
+import path from "node:path";
 import cors from "cors";
 import express from "express";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -6,6 +7,7 @@ import { authRouter } from "./routes/auth.js";
 import { lineAuthRouter } from "./routes/lineAuth.js";
 import { apiRouter } from "./routes/index.js";
 import { platformRouter } from "./routes/platform/index.js";
+import { getUploadRoot } from "./lib/photoStorage.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -16,7 +18,12 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
+
+app.use(
+  "/api/v1/uploads/tickets",
+  express.static(path.join(getUploadRoot())),
+);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "glog-api" });

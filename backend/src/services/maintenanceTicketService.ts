@@ -17,6 +17,16 @@ export const TICKET_INCLUDE = {
   assignedTo: {
     select: { id: true, name: true, email: true, role: true },
   },
+  attachments: {
+    select: {
+      id: true,
+      url: true,
+      mimeType: true,
+      kind: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "asc" as const },
+  },
 } satisfies Prisma.MaintenanceTicketInclude;
 
 const VALID_PRIORITIES = new Set<string>(Object.values(TicketPriority));
@@ -27,6 +37,7 @@ const STATUS_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
   [TicketStatus.OPEN]: [TicketStatus.ASSIGNED, TicketStatus.CANCELLED],
   [TicketStatus.ASSIGNED]: [TicketStatus.IN_PROGRESS, TicketStatus.CANCELLED],
   [TicketStatus.IN_PROGRESS]: [TicketStatus.CANCELLED],
+  [TicketStatus.PENDING_FRONT_DESK]: [],
   [TicketStatus.COMPLETED]: [TicketStatus.CLOSED],
   [TicketStatus.CLOSED]: [],
   [TicketStatus.CANCELLED]: [],

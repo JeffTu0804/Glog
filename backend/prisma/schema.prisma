@@ -23,6 +23,16 @@ enum UserRole {
   FRONT_DESK    // 前台人員：可建立報修工單、查看資產狀態
   HOUSEKEEPING  // 房務人員：可回報客房問題、觸發清潔相關工單
   ENGINEER      // 工程師：接收派單、執行維修並回報完工
+  FOOD_BEVERAGE // 餐飲部：處理餐廳預約等服務請求
+}
+
+/// 飯店部門（跨部門服務請求路由用）
+enum Department {
+  FRONT_DESK
+  FOOD_BEVERAGE
+  HOUSEKEEPING
+  ENGINEERING
+  MANAGEMENT
 }
 
 /// 員工即時狀態：供自動派單演算法判斷工程師是否可接單
@@ -47,12 +57,25 @@ enum AssetStatus {
 
 /// 工單生命週期狀態：落實「觸發 → 派單 → 執行 → 結案」閉環
 enum TicketStatus {
-  OPEN         // 新建：等待派單
-  ASSIGNED     // 已指派：工程師已接單
-  IN_PROGRESS  // 進行中：工程師現場作業
-  COMPLETED    // 已完工：等待財務結案（扣庫存、寫入 CostLog）
-  CLOSED       // 已結案：閉環完成
-  CANCELLED    // 已取消
+  OPEN               // 新建：等待派單
+  ASSIGNED           // 已指派：工程師已接單
+  IN_PROGRESS        // 進行中：工程師現場作業
+  PENDING_FRONT_DESK // 待前台協助（換房、協調客人等）
+  COMPLETED          // 已完工：等待財務結案（扣庫存、寫入 CostLog）
+  CLOSED             // 已結案：閉環完成
+  CANCELLED          // 已取消
+}
+
+/// 工程師回報類型
+enum TicketResolutionType {
+  COMPLETED          // 已處理完成
+  NEEDS_FRONT_DESK   // 無法處理，需前台協助
+}
+
+/// 工單附件類型
+enum TicketAttachmentKind {
+  COMPLETION   // 完工照片
+  ESCALATION   // 升級/無法處理照片
 }
 
 /// 工單優先級：影響派單排序與 SLA 時限
@@ -77,6 +100,42 @@ enum SubscriptionStatus {
   TRIAL      // 試用中
   PAST_DUE   // 逾期未付款
   SUSPENDED  // 已暫停服務
+  CANCELLED  // 已取消
+}
+
+/// 班別類型（台北時間）
+enum ShiftType {
+  MORNING    // 早班 07:00–15:00
+  AFTERNOON  // 中班 15:00–23:00
+  NIGHT      // 晚班 23:00–07:00
+}
+
+/// 交班日誌狀態
+enum ShiftLogbookStatus {
+  OPEN       // 進行中，可新增備註
+  PUBLISHED  // 已交班，AI 摘要已產生
+}
+
+/// 跨部門服務請求類型
+enum ServiceRequestType {
+  RESTAURANT_RESERVATION // 餐廳預約
+  GENERAL                // 一般請求
+}
+
+/// 服務請求狀態
+enum ServiceRequestStatus {
+  PENDING   // 待部門處理
+  CONFIRMED // 已確認
+  REJECTED  // 已拒絕
+  CANCELLED // 已取消
+  COMPLETED // 已完成
+}
+
+/// 提醒狀態
+enum ReminderStatus {
+  SCHEDULED  // 排程中
+  TRIGGERED  // 已觸發（待處理）
+  DISMISSED  // 已處理
   CANCELLED  // 已取消
 }
 
@@ -116,6 +175,11 @@ model Tenant {
   maintenanceTickets MaintenanceTicket[]
   inventoryItems     Inventory[]
   costLogs           CostLog[]
+  shiftLogbooks      ShiftLogbook[]
+  shiftLogEntries    ShiftLogEntry[]
+  serviceRequests    ServiceRequest[]
+  reminders          Reminder[]
+  ticketAttachments  TicketAttachment[]
 }
 
 /// 員工（User）— 綁定 Supabase Auth，隸屬單一租戶
@@ -137,6 +201,12 @@ model User {
   // --- 一對多：員工作為工單觸發人或被指派的工程師 ---
   triggeredTickets MaintenanceTicket[] @relation("TicketTriggeredBy")
   assignedTickets  MaintenanceTicket[] @relation("TicketAssignedTo")
+  logbooksCreated  ShiftLogbook[]      @relation("LogbookCreatedBy")
+  logbooksPublished ShiftLogbook[]     @relation("LogbookPublishedBy")
+  shiftLogEntries  ShiftLogEntry[]
+  serviceRequestsCreated ServiceRequest[] @relation("ServiceRequestCreatedBy")
+  serviceRequestsHandled ServiceRequest[] @relation("ServiceRequestHandledBy")
+  ticketAttachments      TicketAttachment[] @relation("TicketAttachmentUploadedBy")
 
   @@unique([tenantId, email]) /// 同一租戶內 email 不可重複
   @@index([tenantId])
@@ -180,10 +250,14 @@ model MaintenanceTicket {
   priority      TicketPriority @default(MEDIUM) /// 優先級
   triggeredAt   DateTime       @default(now()) /// 觸發時間
   assignedAt    DateTime?      /// 派單時間
-  completedAt   DateTime?      /// 完工時間
-  closedAt      DateTime?      /// 結案時間（含庫存扣除與成本結算）
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  completedAt      DateTime?             /// 完工時間
+  closedAt         DateTime?             /// 結案時間（含庫存扣除與成本結算）
+  resolutionNote   String?               /// 工程師回報說明
+  resolutionType   TicketResolutionType? /// 回報類型
+  resolutionAt     DateTime?             /// 回報時間
+  frontDeskNote    String?               /// 前台協調備註
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   // --- 多對一：工單隸屬單一租戶 ---
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -199,6 +273,12 @@ model MaintenanceTicket {
 
   // --- 一對多：工單結案時產生的成本紀錄 ---
   costLogs CostLog[]
+
+  // --- 一對多：完工/升級照片 ---
+  attachments TicketAttachment[]
+
+  // --- 一對多：跨部門提醒 ---
+  reminders Reminder[]
 
   @@index([tenantId])
   @@index([tenantId, status]) /// 加速依狀態篩選工單列表
@@ -247,4 +327,126 @@ model CostLog {
 
   @@index([tenantId])
   @@index([ticketId]) /// 加速查詢特定工單的所有成本
+}
+
+/// 交班日誌（Shift Logbook）— 每班次的 AI 摘要與交接紀錄
+model ShiftLogbook {
+  id            String             @id @default(cuid())
+  tenantId      String
+  shiftType     ShiftType
+  shiftDate     DateTime           @db.Date /// 班別起始日（台北時間）
+  shiftStart    DateTime           /// 班別開始（UTC）
+  shiftEnd      DateTime           /// 班別結束（UTC）
+  status        ShiftLogbookStatus @default(OPEN)
+  aiSummary     String?            @db.Text /// AI 產生的交班摘要
+  highlights    String[]           /// 重點條列
+  openItems     String[]           /// 待接班追蹤事項
+  snapshotJson  Json?              /// 原始事件快照（供除錯）
+  createdById   String
+  publishedById String?
+  publishedAt   DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy   User            @relation("LogbookCreatedBy", fields: [createdById], references: [id])
+  publishedBy User?           @relation("LogbookPublishedBy", fields: [publishedById], references: [id])
+  entries     ShiftLogEntry[]
+
+  @@unique([tenantId, shiftType, shiftDate])
+  @@index([tenantId, status])
+  @@index([tenantId, publishedAt])
+}
+
+/// 班別內手動備註
+model ShiftLogEntry {
+  id        String   @id @default(cuid())
+  tenantId  String
+  logbookId String
+  authorId  String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  logbook ShiftLogbook @relation(fields: [logbookId], references: [id], onDelete: Cascade)
+  author  User         @relation(fields: [authorId], references: [id])
+
+  @@index([tenantId])
+  @@index([logbookId])
+}
+
+/// 跨部門服務請求（如餐廳預約）
+model ServiceRequest {
+  id               String               @id @default(cuid())
+  tenantId         String
+  type             ServiceRequestType   @default(RESTAURANT_RESERVATION)
+  status           ServiceRequestStatus @default(PENDING)
+  title            String
+  description      String?
+  guestRoom        String               /// 房號（如 305）
+  guestName        String               /// 客人姓名
+  targetDepartment Department           /// 接收部門
+  sourceDepartment Department           @default(FRONT_DESK)
+  createdById      String
+  handledById      String?
+  scheduledAt      DateTime             /// 預約／服務時間
+  reminderAt       DateTime?            /// 提醒前台通知客人的時間
+  responseNote     String?              /// 處理部門回覆
+  confirmedAt      DateTime?
+  rejectedAt       DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User       @relation("ServiceRequestCreatedBy", fields: [createdById], references: [id])
+  handledBy User?      @relation("ServiceRequestHandledBy", fields: [handledById], references: [id])
+  reminders Reminder[]
+
+  @@index([tenantId])
+  @@index([tenantId, targetDepartment, status])
+  @@index([tenantId, createdById])
+  @@index([tenantId, scheduledAt])
+}
+
+/// 工單現場照片（完工確認或升級佐證）
+model TicketAttachment {
+  id           String               @id @default(cuid())
+  tenantId     String
+  ticketId     String
+  uploadedById String
+  url          String               /// 公開存取路徑
+  mimeType     String               @default("image/jpeg")
+  kind         TicketAttachmentKind
+  createdAt    DateTime             @default(now())
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticket     MaintenanceTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  uploadedBy User              @relation("TicketAttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([tenantId])
+  @@index([ticketId])
+}
+
+/// 服務提醒（如預約前 30 分鐘通知客人、工程完工通知）
+model Reminder {
+  id                  String         @id @default(cuid())
+  tenantId            String
+  serviceRequestId    String?
+  maintenanceTicketId String?
+  title               String
+  message             String
+  remindAt            DateTime
+  status              ReminderStatus @default(SCHEDULED)
+  notifyDepartment    Department     @default(FRONT_DESK)
+  triggeredAt         DateTime?
+  dismissedAt         DateTime?
+  createdAt           DateTime       @default(now())
+
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  serviceRequest    ServiceRequest?    @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  maintenanceTicket MaintenanceTicket? @relation(fields: [maintenanceTicketId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, remindAt])
+  @@index([serviceRequestId])
+  @@index([maintenanceTicketId])
 }

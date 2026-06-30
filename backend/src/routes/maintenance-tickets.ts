@@ -16,6 +16,11 @@ import {
   type CloseTicketInput,
   type InventoryUsage,
 } from "../services/ticketClosureService.js";
+import {
+  parseTicketReportBody,
+  resolveFrontDeskEscalation,
+  submitTicketReport,
+} from "../services/ticketReportService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { getParamId, parseOptionalStringArray } from "../utils/validators.js";
 
@@ -174,6 +179,51 @@ maintenanceTicketsRouter.patch(
       { id: req.user!.id, role: req.user!.role },
     );
 
+    res.json({ ticket });
+  }),
+);
+
+/**
+ * POST /api/v1/maintenance-tickets/:id/report
+ * 工程師現場回報：完工照片或升級前台協助
+ */
+maintenanceTicketsRouter.post(
+  "/:id/report",
+  requireRole(UserRole.ADMIN, UserRole.ENGINEER),
+  asyncHandler(async (req, res) => {
+    const input = parseTicketReportBody(req.body as Record<string, unknown>);
+    const ticket = await submitTicketReport(
+      req.user!.tenantId,
+      getParamId(req.params, "工單 ID"),
+      { id: req.user!.id, role: req.user!.role },
+      input,
+    );
+    res.json({ ticket });
+  }),
+);
+
+/**
+ * POST /api/v1/maintenance-tickets/:id/front-desk-resolve
+ * 前台處理升級案件
+ */
+maintenanceTicketsRouter.post(
+  "/:id/front-desk-resolve",
+  requireRole(UserRole.ADMIN, UserRole.FRONT_DESK),
+  asyncHandler(async (req, res) => {
+    const { action, note } = req.body as { action?: unknown; note?: unknown };
+    if (action !== "RESUME" && action !== "CLOSE") {
+      throw new AppError(400, "action 必須為 RESUME 或 CLOSE");
+    }
+    if (typeof note !== "string") {
+      throw new AppError(400, "note 為必填");
+    }
+    const ticket = await resolveFrontDeskEscalation(
+      req.user!.tenantId,
+      getParamId(req.params, "工單 ID"),
+      { id: req.user!.id, role: req.user!.role },
+      action,
+      note,
+    );
     res.json({ ticket });
   }),
 );

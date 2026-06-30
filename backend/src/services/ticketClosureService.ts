@@ -15,8 +15,12 @@ export interface CloseTicketInput {
   laborDescription?: string;
 }
 
-function parseInventoryUsages(value: InventoryUsage[]): void {
-  if (!Array.isArray(value) || value.length === 0) {
+function parseInventoryUsages(value: InventoryUsage[], optional: boolean): void {
+  if (!Array.isArray(value)) {
+    throw new AppError(400, "inventoryUsages 格式無效");
+  }
+
+  if (!optional && value.length === 0) {
     throw new AppError(400, "inventoryUsages 為必填且至少需一項耗材");
   }
 
@@ -44,18 +48,19 @@ export async function closeTicket(
   actor: { id: string; role: UserRole },
   input: CloseTicketInput,
 ) {
-  parseInventoryUsages(input.inventoryUsages);
-
-  if (input.laborCost !== undefined && input.laborCost < 0) {
-    throw new AppError(400, "laborCost 不可為負數");
-  }
-
   const ticket = await prisma.maintenanceTicket.findFirst({
     where: withTenantScope(tenantId, { id: ticketId }),
   });
 
   if (!ticket) {
     throw new AppError(404, "找不到工單");
+  }
+
+  const inventoryOptional = ticket.status === TicketStatus.COMPLETED;
+  parseInventoryUsages(input.inventoryUsages, inventoryOptional);
+
+  if (input.laborCost !== undefined && input.laborCost < 0) {
+    throw new AppError(400, "laborCost 不可為負數");
   }
 
   if (
@@ -65,17 +70,21 @@ export async function closeTicket(
     throw new AppError(403, "僅能結案指派給自己的工單");
   }
 
-  if (ticket.status !== TicketStatus.IN_PROGRESS) {
-    throw new AppError(400, "僅 IN_PROGRESS 狀態的工單可以結案");
+  const closableStatuses: TicketStatus[] = [
+    TicketStatus.IN_PROGRESS,
+    TicketStatus.COMPLETED,
+  ];
+  if (!closableStatuses.includes(ticket.status)) {
+    throw new AppError(400, "此工單狀態無法結案");
   }
 
   const inventoryIds = input.inventoryUsages.map((u) => u.inventoryId);
-  const inventoryItems = await prisma.inventory.findMany({
-    where: {
-      tenantId,
-      id: { in: inventoryIds },
-    },
-  });
+  const inventoryItems =
+    inventoryIds.length > 0
+      ? await prisma.inventory.findMany({
+          where: { tenantId, id: { in: inventoryIds } },
+        })
+      : [];
 
   if (inventoryItems.length !== inventoryIds.length) {
     throw new AppError(404, "部分耗材不存在或不屬於此租戶");
@@ -147,7 +156,7 @@ export async function closeTicket(
       where: { id: ticket.id },
       data: {
         status: TicketStatus.CLOSED,
-        completedAt: now,
+        completedAt: ticket.completedAt ?? now,
         closedAt: now,
       },
       include: TICKET_INCLUDE,
