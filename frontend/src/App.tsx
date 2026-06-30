@@ -8,8 +8,10 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { LandingPage } from "./pages/LandingPage";
 import { AuthCallbackPage, CompleteRegistrationPage } from "./pages/AuthCallbackPage";
+import { LogbookPage } from "./pages/LogbookPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { ServiceRequestsPage } from "./pages/ServiceRequestsPage";
 import { TicketDetailPage } from "./pages/TicketDetailPage";
 import { TicketsPage } from "./pages/TicketsPage";
 import { UsersPage } from "./pages/UsersPage";
@@ -77,6 +79,8 @@ export default function App() {
       >
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="tickets" element={<TicketsPage />} />
+        <Route path="service-requests" element={<ServiceRequestsPage />} />
+        <Route path="logbook" element={<LogbookPage />} />
         <Route path="tickets/:id" element={<TicketDetailPage />} />
         <Route path="assets" element={<AssetsPage />} />
         <Route path="inventory" element={<InventoryPage />} />

@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { ReminderBanner } from "./ReminderBanner";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_LABELS } from "./TicketBadges";
 
@@ -9,7 +10,9 @@ const NAV_ITEMS: {
   adminOnly?: boolean;
 }[] = [
   { to: "/dashboard", label: "總覽" },
-  { to: "/tickets", label: "工單" },
+  { to: "/tickets", label: "工程工單" },
+  { to: "/service-requests", label: "服務請求" },
+  { to: "/logbook", label: "交班日誌" },
   { to: "/assets", label: "地點" },
   { to: "/inventory", label: "庫存" },
   { to: "/costs", label: "成本" },
@@ -82,6 +85,7 @@ export function Layout() {
           ))}
         </nav>
       </header>
+      <ReminderBanner />
       <main className="mx-auto max-w-6xl px-4 py-8">
         <Outlet />
       </main>

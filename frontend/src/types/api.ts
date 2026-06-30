@@ -1,9 +1,10 @@
-export type UserRole = "ADMIN" | "FRONT_DESK" | "HOUSEKEEPING" | "ENGINEER";
+export type UserRole = "ADMIN" | "FRONT_DESK" | "HOUSEKEEPING" | "ENGINEER" | "FOOD_BEVERAGE";
 export type UserStatus = "IDLE" | "BUSY";
 export type TicketStatus =
   | "OPEN"
   | "ASSIGNED"
   | "IN_PROGRESS"
+  | "PENDING_FRONT_DESK"
   | "COMPLETED"
   | "CLOSED"
   | "CANCELLED";
@@ -47,6 +48,14 @@ export interface TicketUser {
   role: UserRole;
 }
 
+export interface TicketAttachment {
+  id: string;
+  url: string;
+  mimeType: string;
+  kind: "COMPLETION" | "ESCALATION";
+  createdAt: string;
+}
+
 export interface MaintenanceTicket {
   id: string;
   title: string;
@@ -57,9 +66,15 @@ export interface MaintenanceTicket {
   assignedAt: string | null;
   completedAt: string | null;
   closedAt: string | null;
+  updatedAt: string;
+  resolutionNote: string | null;
+  resolutionType: "COMPLETED" | "NEEDS_FRONT_DESK" | null;
+  resolutionAt: string | null;
+  frontDeskNote: string | null;
   asset: Pick<Asset, "id" | "name" | "code" | "type" | "status">;
   triggeredBy: TicketUser;
   assignedTo: TicketUser | null;
+  attachments: TicketAttachment[];
 }
 
 export interface CreateTicketResponse {
@@ -85,4 +100,124 @@ export interface CostLog {
     status: string;
     asset: { id: string; name: string; code: string };
   } | null;
+}
+
+export type ShiftType = "MORNING" | "AFTERNOON" | "NIGHT";
+export type ShiftLogbookStatus = "OPEN" | "PUBLISHED";
+
+export interface ShiftLogEntry {
+  id: string;
+  content: string;
+  createdAt: string;
+  author: { id: string; name: string };
+}
+
+export interface ShiftLogbook {
+  id: string;
+  shiftType: ShiftType;
+  shiftLabel: string;
+  shiftDate: string;
+  shiftWindow: string;
+  shiftStart: string;
+  shiftEnd: string;
+  status: ShiftLogbookStatus;
+  aiSummary: string | null;
+  highlights: string[];
+  openItems: string[];
+  createdBy: { id: string; name: string };
+  publishedBy: { id: string; name: string } | null;
+  publishedAt: string | null;
+  entries: ShiftLogEntry[];
+  createdAt: string;
+}
+
+export type Department =
+  | "FRONT_DESK"
+  | "FOOD_BEVERAGE"
+  | "HOUSEKEEPING"
+  | "ENGINEERING"
+  | "MANAGEMENT";
+
+export type ServiceRequestType = "RESTAURANT_RESERVATION" | "GENERAL";
+export type ServiceRequestStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "REJECTED"
+  | "CANCELLED"
+  | "COMPLETED";
+
+export type ReminderStatus = "SCHEDULED" | "TRIGGERED" | "DISMISSED" | "CANCELLED";
+
+export interface ServiceRequestUser {
+  id: string;
+  name: string;
+  role: UserRole;
+}
+
+export interface ServiceRequest {
+  id: string;
+  type: ServiceRequestType;
+  status: ServiceRequestStatus;
+  title: string;
+  description: string | null;
+  guestRoom: string;
+  guestName: string;
+  targetDepartment: Department;
+  sourceDepartment: Department;
+  scheduledAt: string;
+  reminderAt: string | null;
+  responseNote: string | null;
+  confirmedAt: string | null;
+  rejectedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: ServiceRequestUser;
+  handledBy: ServiceRequestUser | null;
+  reminders: Array<{
+    id: string;
+    title: string;
+    remindAt: string;
+    status: ReminderStatus;
+    triggeredAt: string | null;
+  }>;
+}
+
+export interface Reminder {
+  id: string;
+  title: string;
+  message: string;
+  remindAt: string;
+  status: ReminderStatus;
+  notifyDepartment: Department;
+  triggeredAt: string | null;
+  dismissedAt: string | null;
+  createdAt: string;
+  serviceRequest: {
+    id: string;
+    title: string;
+    guestRoom: string;
+    guestName: string;
+    scheduledAt: string;
+    status: ServiceRequestStatus;
+    responseNote: string | null;
+  } | null;
+  maintenanceTicket: {
+    id: string;
+    title: string;
+    status: string;
+    resolutionNote: string | null;
+    asset: { code: string; name: string };
+  } | null;
+}
+
+export interface LogbookCurrentResponse {
+  shift: {
+    type: ShiftType;
+    label: string;
+    window: string;
+    shiftStart: string;
+    shiftEnd: string;
+  };
+  logbook: ShiftLogbook;
+  previousHandover: ShiftLogbook | null;
 }

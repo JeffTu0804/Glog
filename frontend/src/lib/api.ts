@@ -4,7 +4,10 @@ import type {
   CreateTicketResponse,
   InventoryItem,
   InventoryUsage,
+  LogbookCurrentResponse,
   MaintenanceTicket,
+  Reminder,
+  ServiceRequest,
   TicketPriority,
   TicketStatus,
   User,
@@ -46,8 +49,14 @@ async function request<T>(
 export const api = {
   getMe: (token: string) => request<{ user: User }>("/me", token),
 
-  getTickets: (token: string, params?: { status?: TicketStatus }) => {
-    const query = params?.status ? `?status=${params.status}` : "";
+  getTickets: (
+    token: string,
+    params?: { status?: TicketStatus; assignedToId?: string },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.status) search.set("status", params.status);
+    if (params?.assignedToId) search.set("assignedToId", params.assignedToId);
+    const query = search.toString() ? `?${search.toString()}` : "";
     return request<{ tickets: MaintenanceTicket[] }>(
       `/maintenance-tickets${query}`,
       token,
@@ -90,7 +99,7 @@ export const api = {
     token: string,
     id: string,
     body: {
-      inventoryUsages: InventoryUsage[];
+      inventoryUsages?: InventoryUsage[];
       laborCost?: number;
       laborDescription?: string;
     },
@@ -99,6 +108,32 @@ export const api = {
       `/maintenance-tickets/${id}/close`,
       token,
       { method: "PATCH", body: JSON.stringify(body) },
+    ),
+
+  submitTicketReport: (
+    token: string,
+    id: string,
+    body: {
+      type: "COMPLETED" | "NEEDS_FRONT_DESK";
+      note: string;
+      photos: Array<{ data: string; mimeType: string }>;
+    },
+  ) =>
+    request<{ ticket: MaintenanceTicket }>(
+      `/maintenance-tickets/${id}/report`,
+      token,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  resolveFrontDeskEscalation: (
+    token: string,
+    id: string,
+    body: { action: "RESUME" | "CLOSE"; note: string },
+  ) =>
+    request<{ ticket: MaintenanceTicket }>(
+      `/maintenance-tickets/${id}/front-desk-resolve`,
+      token,
+      { method: "POST", body: JSON.stringify(body) },
     ),
 
   getAssets: (token: string) =>
@@ -146,6 +181,75 @@ export const api = {
     request<{ item: InventoryItem }>("/inventory", token, {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+
+  getLogbookCurrent: (token: string) =>
+    request<LogbookCurrentResponse>("/logbook/current", token),
+
+  listLogbooks: (token: string) =>
+    request<{ logbooks: ShiftLogbook[] }>("/logbook", token),
+
+  addLogbookEntry: (token: string, logbookId: string, content: string) =>
+    request<{ entry: ShiftLogbook["entries"][number] }>(
+      `/logbook/${logbookId}/entries`,
+      token,
+      { method: "POST", body: JSON.stringify({ content }) },
+    ),
+
+  publishLogbook: (token: string, logbookId: string) =>
+    request<{ logbook: ShiftLogbook }>(`/logbook/${logbookId}/publish`, token, {
+      method: "POST",
+    }),
+
+  refreshLogbookSummary: (token: string, logbookId: string) =>
+    request<{ logbook: ShiftLogbook }>(
+      `/logbook/${logbookId}/refresh-summary`,
+      token,
+      { method: "POST" },
+    ),
+
+  getServiceRequests: (token: string, view: "inbox" | "sent" | "all" = "inbox") =>
+    request<{ requests: ServiceRequest[] }>(
+      `/service-requests?view=${view}`,
+      token,
+    ),
+
+  createServiceRequest: (
+    token: string,
+    body: {
+      type?: string;
+      title: string;
+      description?: string;
+      guestRoom: string;
+      guestName: string;
+      targetDepartment: string;
+      scheduledAt: string;
+      reminderAt?: string;
+    },
+  ) =>
+    request<{ request: ServiceRequest }>("/service-requests", token, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  confirmServiceRequest: (token: string, id: string, responseNote: string) =>
+    request<{ request: ServiceRequest }>(`/service-requests/${id}/confirm`, token, {
+      method: "POST",
+      body: JSON.stringify({ responseNote }),
+    }),
+
+  rejectServiceRequest: (token: string, id: string, responseNote: string) =>
+    request<{ request: ServiceRequest }>(`/service-requests/${id}/reject`, token, {
+      method: "POST",
+      body: JSON.stringify({ responseNote }),
+    }),
+
+  getActiveReminders: (token: string) =>
+    request<{ reminders: Reminder[] }>("/reminders/active", token),
+
+  dismissReminder: (token: string, id: string) =>
+    request<{ reminder: Reminder }>(`/reminders/${id}/dismiss`, token, {
+      method: "POST",
     }),
 };
 
