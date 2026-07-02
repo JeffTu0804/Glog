@@ -180,6 +180,7 @@ model Tenant {
   serviceRequests    ServiceRequest[]
   reminders          Reminder[]
   ticketAttachments  TicketAttachment[]
+  hotel              Hotel?
 }
 
 /// 員工（User）— 綁定 Supabase Auth，隸屬單一租戶
@@ -208,6 +209,7 @@ model User {
   serviceRequestsCreated ServiceRequest[] @relation("ServiceRequestCreatedBy")
   serviceRequestsHandled ServiceRequest[] @relation("ServiceRequestHandledBy")
   ticketAttachments      TicketAttachment[] @relation("TicketAttachmentUploadedBy")
+  guestRequestsHandled GuestRequest[]     @relation("GuestRequestHandledBy")
 
   @@unique([tenantId, email]) /// 同一租戶內 email 不可重複
   @@index([tenantId])
@@ -233,6 +235,9 @@ model Asset {
 
   // --- 一對多：此資產關聯的所有維修工單 ---
   maintenanceTickets MaintenanceTicket[]
+
+  // --- 一對一：住客 QR 客房（可選） ---
+  guestRoom Room?
 
   @@unique([tenantId, code]) /// 同一租戶內資產編號不可重複
   @@index([tenantId])
@@ -436,6 +441,7 @@ model Reminder {
   tenantId            String
   serviceRequestId    String?
   maintenanceTicketId String?
+  guestRequestId      String?        @db.Uuid
   title               String
   message             String
   remindAt            DateTime
@@ -448,8 +454,73 @@ model Reminder {
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   serviceRequest    ServiceRequest?    @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
   maintenanceTicket MaintenanceTicket? @relation(fields: [maintenanceTicketId], references: [id], onDelete: Cascade)
+  guestRequest      GuestRequest?      @relation(fields: [guestRequestId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, status, remindAt])
   @@index([serviceRequestId])
   @@index([maintenanceTicketId])
+  @@index([guestRequestId])
+}
+
+// ---------------------------------------------------------------------------
+// 住客掃碼請求（免登入，與 hotels / rooms / guest_requests 表對應）
+// ---------------------------------------------------------------------------
+
+/// 飯店租戶（住客 QR 模組，與 Tenant 一對一）
+model Hotel {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @unique
+  name              String
+  lineOfficialToken String?  @map("line_official_token")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rooms         Room[]
+  guestRequests GuestRequest[]
+
+  @@map("hotels")
+}
+
+/// 客房（含 QR 識別金鑰）
+model Room {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hotelId    String   @map("hotel_id") @db.Uuid
+  assetId    String?  @unique @map("asset_id")
+  roomNumber String   @map("room_number")
+  qrToken    String   @unique @map("qr_token")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  hotel         Hotel          @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  asset         Asset?         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  guestRequests GuestRequest[]
+
+  @@unique([hotelId, roomNumber])
+  @@index([hotelId])
+  @@map("rooms")
+}
+
+/// 住客服務請求
+model GuestRequest {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hotelId          String     @map("hotel_id") @db.Uuid
+  roomId           String     @map("room_id") @db.Uuid
+  requestType      String     @map("request_type")
+  targetDepartment Department @map("target_department")
+  status           String     @default("pending")
+  notes            String?    @db.Text
+  handledById      String?    @map("handled_by_id")
+  completedAt      DateTime?  @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  hotel     Hotel      @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  room      Room       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  handledBy User?      @relation("GuestRequestHandledBy", fields: [handledById], references: [id])
+  reminders Reminder[]
+
+  @@index([hotelId])
+  @@index([roomId])
+  @@index([hotelId, status])
+  @@index([hotelId, targetDepartment, status])
+  @@index([createdAt])
+  @@map("guest_requests")
 }

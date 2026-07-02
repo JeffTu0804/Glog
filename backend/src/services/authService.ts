@@ -2,6 +2,7 @@ import { SubscriptionPlan, SubscriptionStatus, UserRole } from "@prisma/client";
 import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
 import { seedStarterAssets } from "./tenantBootstrapService.js";
+import { ensureHotelForTenant, syncRoomsFromAssets } from "./hotelBootstrapService.js";
 
 export interface RegisterHotelInput {
   supabaseUserId: string;
@@ -84,6 +85,9 @@ export async function registerHotel(input: RegisterHotelInput) {
 
     await seedStarterAssets(tx, tenant.id);
 
-    return { tenant, user };
+    const hotel = await ensureHotelForTenant(tx, tenant.id, input.hotelName.trim());
+    await syncRoomsFromAssets(tx, tenant.id);
+
+    return { tenant, user, hotel };
   });
 }

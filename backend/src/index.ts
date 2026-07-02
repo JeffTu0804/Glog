@@ -8,6 +8,7 @@ import { lineAuthRouter } from "./routes/lineAuth.js";
 import { apiRouter } from "./routes/index.js";
 import { platformRouter } from "./routes/platform/index.js";
 import { getUploadRoot } from "./lib/photoStorage.js";
+import { guestPublicRouter } from "./routes/guestPublic.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -28,6 +29,9 @@ app.use(
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "glog-api" });
 });
+
+// 住客掃碼 API（免登入）
+app.use("/api/guest", guestPublicRouter);
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/auth/line", lineAuthRouter);
