@@ -2,12 +2,14 @@ import type {
   Asset,
   CostLog,
   CreateTicketResponse,
+  Department,
   InventoryItem,
   InventoryUsage,
   LogbookCurrentResponse,
   MaintenanceTicket,
   Reminder,
   ServiceRequest,
+  ShiftLogbook,
   TicketPriority,
   TicketStatus,
   User,
@@ -183,11 +185,18 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  getLogbookCurrent: (token: string) =>
-    request<LogbookCurrentResponse>("/logbook/current", token),
+  getLogbookCurrent: (token: string, department?: Department) => {
+    const q = department ? `?department=${department}` : "";
+    return request<LogbookCurrentResponse>(`/logbook/current${q}`, token);
+  },
 
-  listLogbooks: (token: string) =>
-    request<{ logbooks: ShiftLogbook[] }>("/logbook", token),
+  listLogbooks: (token: string, department?: Department) => {
+    const q = department ? `?department=${department}` : "";
+    return request<{ department: Department; logbooks: ShiftLogbook[] }>(
+      `/logbook${q}`,
+      token,
+    );
+  },
 
   addLogbookEntry: (token: string, logbookId: string, content: string) =>
     request<{ entry: ShiftLogbook["entries"][number] }>(

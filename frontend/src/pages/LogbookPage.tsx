@@ -1,10 +1,20 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
-import type { LogbookCurrentResponse, ShiftLogbook } from "../types/api";
+import {
+  ALL_DEPARTMENTS,
+  canAccessDepartment,
+  DEPARTMENT_LABELS,
+  roleToDepartment,
+} from "../lib/department";
+import type { Department, LogbookCurrentResponse, ShiftLogbook } from "../types/api";
 
 export function LogbookPage() {
-  const { getToken } = useAuth();
+  const { getToken, profile } = useAuth();
+  const defaultDepartment = profile ? roleToDepartment(profile.role) : "FRONT_DESK";
+  const isAdmin = profile?.role === "ADMIN";
+
+  const [department, setDepartment] = useState<Department>(defaultDepartment);
   const [data, setData] = useState<LogbookCurrentResponse | null>(null);
   const [history, setHistory] = useState<ShiftLogbook[]>([]);
   const [note, setNote] = useState("");
@@ -13,14 +23,20 @@ export function LogbookPage() {
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  async function load() {
+  useEffect(() => {
+    if (profile) {
+      setDepartment(roleToDepartment(profile.role));
+    }
+  }, [profile?.id, profile?.role]);
+
+  async function load(dept: Department) {
     setLoading(true);
     setError("");
     try {
       const token = await getToken();
       const [current, list] = await Promise.all([
-        api.getLogbookCurrent(token),
-        api.listLogbooks(token),
+        api.getLogbookCurrent(token, dept),
+        api.listLogbooks(token, dept),
       ]);
       setData(current);
       setHistory(list.logbooks.filter((l) => l.status === "PUBLISHED"));
@@ -32,8 +48,8 @@ export function LogbookPage() {
   }
 
   useEffect(() => {
-    void load();
-  }, [getToken]);
+    void load(department);
+  }, [getToken, department]);
 
   const viewing =
     selectedId != null
@@ -53,7 +69,7 @@ export function LogbookPage() {
       const token = await getToken();
       await api.addLogbookEntry(token, data.logbook.id, note.trim());
       setNote("");
-      await load();
+      await load(department);
       setSelectedId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "新增備註失敗");
@@ -64,13 +80,19 @@ export function LogbookPage() {
 
   async function handlePublish() {
     if (!data?.logbook) return;
-    if (!confirm("確定要產生 AI 交班摘要並完成交班？")) return;
+    if (
+      !confirm(
+        `確定要產生 ${DEPARTMENT_LABELS[department]} AI 交班摘要並完成交班？\n交班後將透過 LINE 推播給部門同仁。`,
+      )
+    ) {
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
       const token = await getToken();
       await api.publishLogbook(token, data.logbook.id);
-      await load();
+      await load(department);
       setSelectedId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "交班失敗");
@@ -79,7 +101,13 @@ export function LogbookPage() {
     }
   }
 
-  if (loading) {
+  function handleDepartmentChange(next: Department) {
+    if (!profile || !canAccessDepartment(profile.role, next)) return;
+    setDepartment(next);
+    setSelectedId(null);
+  }
+
+  if (loading && !data) {
     return <p className="text-slate-500">載入中…</p>;
   }
 
@@ -91,6 +119,29 @@ export function LogbookPage() {
           <p className="mt-1 text-sm text-slate-500">
             記錄本班事件，交班時自動產生摘要給接班同仁
           </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <label htmlFor="logbook-department" className="text-sm text-slate-600">
+              部門
+            </label>
+            {isAdmin ? (
+              <select
+                id="logbook-department"
+                value={department}
+                onChange={(e) => handleDepartmentChange(e.target.value as Department)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
+              >
+                {ALL_DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {DEPARTMENT_LABELS[dept]}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700">
+                {DEPARTMENT_LABELS[department]}
+              </span>
+            )}
+          </div>
         </div>
         {data && isCurrentOpen && (
           <button
@@ -111,7 +162,7 @@ export function LogbookPage() {
       {data && (
         <div className="rounded-xl bg-indigo-50 p-5 ring-1 ring-indigo-100">
           <p className="text-sm font-medium text-indigo-900">
-            目前班別：{data.shift.label}（{data.shift.window}）
+            {DEPARTMENT_LABELS[department]} · 目前班別：{data.shift.label}（{data.shift.window}）
           </p>
           <p className="mt-1 text-xs text-indigo-700">
             狀態：{data.logbook.status === "OPEN" ? "進行中" : "已交班"}
@@ -256,7 +307,7 @@ export function LogbookPage() {
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               {displayLogbook?.status === "OPEN"
-                ? "完成交班後，系統會彙整工單、地點、庫存與備註並產生 AI 摘要"
+                ? "完成交班後，系統會彙整工單、地點、庫存與備註並產生 AI 摘要，並透過 LINE 推播給部門同仁"
                 : `由 ${displayLogbook?.publishedBy?.name ?? "—"} 於 ${displayLogbook?.publishedAt ? new Date(displayLogbook.publishedAt).toLocaleString("zh-TW") : "—"} 交班`}
             </p>
 

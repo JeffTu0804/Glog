@@ -19,6 +19,7 @@ export interface User {
   role: UserRole;
   status: UserStatus;
   skills: string[];
+  department?: Department;
 }
 
 export interface Asset {
@@ -114,6 +115,8 @@ export interface ShiftLogEntry {
 
 export interface ShiftLogbook {
   id: string;
+  department: Department;
+  departmentLabel: string;
   shiftType: ShiftType;
   shiftLabel: string;
   shiftDate: string;
@@ -211,6 +214,7 @@ export interface Reminder {
 }
 
 export interface LogbookCurrentResponse {
+  department: Department;
   shift: {
     type: ShiftType;
     label: string;
