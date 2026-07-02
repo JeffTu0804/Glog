@@ -3,6 +3,8 @@ import type {
   CostLog,
   CreateTicketResponse,
   Department,
+  GuestRequestItem,
+  GuestRoom,
   InventoryItem,
   InventoryUsage,
   LogbookCurrentResponse,
@@ -260,6 +262,49 @@ export const api = {
     request<{ reminder: Reminder }>(`/reminders/${id}/dismiss`, token, {
       method: "POST",
     }),
+
+  getGuestRequests: (
+    token: string,
+    params?: { status?: string; view?: "inbox" | "all" },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.status) search.set("status", params.status);
+    if (params?.view) search.set("view", params.view);
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return request<{ requests: GuestRequestItem[] }>(`/guest-requests${q}`, token);
+  },
+
+  updateGuestRequest: (
+    token: string,
+    id: string,
+    body: { status: "processing" | "completed"; notes?: string },
+  ) =>
+    request<{ request: GuestRequestItem }>(`/guest-requests/${id}`, token, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  getGuestRooms: (token: string) =>
+    request<{ rooms: GuestRoom[] }>("/guest-requests/rooms", token),
+
+  syncGuestRooms: (token: string) =>
+    request<{ created: number; updated: number; rooms: GuestRoom[] }>(
+      "/guest-requests/rooms/sync",
+      token,
+      { method: "POST" },
+    ),
+
+  regenerateRoomQr: (token: string, roomId: string) =>
+    request<{ room: GuestRoom }>(`/guest-requests/rooms/${roomId}/regenerate-qr`, token, {
+      method: "POST",
+    }),
+
+  updateHotelLineToken: (token: string, lineOfficialToken: string) =>
+    request<{ hotel: { id: string; name: string; lineOfficialToken: string | null } }>(
+      "/guest-requests/hotel/line-token",
+      token,
+      { method: "PATCH", body: JSON.stringify({ lineOfficialToken }) },
+    ),
 };
 
 export { ApiError };

@@ -9,6 +9,9 @@ import { InventoryPage } from "./pages/InventoryPage";
 import { LandingPage } from "./pages/LandingPage";
 import { AuthCallbackPage, CompleteRegistrationPage } from "./pages/AuthCallbackPage";
 import { LogbookPage } from "./pages/LogbookPage";
+import { GuestRequestsPage } from "./pages/GuestRequestsPage";
+import { GuestScanPage } from "./pages/GuestScanPage";
+import { QrRoomsPage } from "./pages/QrRoomsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ServiceRequestsPage } from "./pages/ServiceRequestsPage";
@@ -69,6 +72,7 @@ export default function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/register/complete" element={<CompleteRegistrationPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route path="/guest" element={<GuestScanPage />} />
 
       <Route
         element={
@@ -80,11 +84,20 @@ export default function App() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="service-requests" element={<ServiceRequestsPage />} />
+        <Route path="guest-requests" element={<GuestRequestsPage />} />
         <Route path="logbook" element={<LogbookPage />} />
         <Route path="tickets/:id" element={<TicketDetailPage />} />
         <Route path="assets" element={<AssetsPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="costs" element={<CostLogsPage />} />
+        <Route
+          path="qr-rooms"
+          element={
+            <AdminRoute>
+              <QrRoomsPage />
+            </AdminRoute>
+          }
+        />
         <Route
           path="users"
           element={

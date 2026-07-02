@@ -211,6 +211,49 @@ export interface Reminder {
     resolutionNote: string | null;
     asset: { code: string; name: string };
   } | null;
+  guestRequest: {
+    id: string;
+    requestType: string;
+    status: string;
+    targetDepartment: Department;
+    roomNumber: string;
+    hotelName: string;
+  } | null;
+}
+
+export type GuestRequestStatus = "pending" | "processing" | "completed";
+
+export interface GuestRequestItem {
+  id: string;
+  hotel_id: string;
+  room_id: string;
+  room_number: string;
+  hotel_name: string;
+  request_type: string;
+  request_label: string;
+  target_department: Department;
+  status: GuestRequestStatus;
+  status_label: string;
+  notes: string | null;
+  handled_by: { id: string; name: string } | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface GuestRoom {
+  id: string;
+  roomNumber: string;
+  qrToken: string;
+  scanUrl: string;
+  asset: { id: string; name: string; status: string } | null;
+  createdAt: string;
+}
+
+export interface GuestRoomInfo {
+  room_id: string;
+  room_number: string;
+  hotel_id: string;
+  hotel_name: string;
 }
 
 export interface LogbookCurrentResponse {

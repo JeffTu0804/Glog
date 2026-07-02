@@ -12,6 +12,7 @@ const NAV_ITEMS: {
   { to: "/dashboard", label: "總覽" },
   { to: "/tickets", label: "工程工單" },
   { to: "/service-requests", label: "服務請求" },
+  { to: "/guest-requests", label: "住客請求" },
   { to: "/logbook", label: "交班日誌" },
   { to: "/assets", label: "地點" },
   { to: "/inventory", label: "庫存" },

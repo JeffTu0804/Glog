@@ -11,13 +11,16 @@ export function ReminderBanner() {
       <div className="mx-auto max-w-6xl space-y-2 px-4 py-3">
         {reminders.map((r) => {
           const isTicket = Boolean(r.maintenanceTicket);
+          const isGuest = Boolean(r.guestRequest);
           const isRejected = r.serviceRequest?.status === "REJECTED";
           const isConfirmed = r.serviceRequest?.status === "CONFIRMED";
           const borderClass = isRejected
             ? "border-red-300"
             : isConfirmed
               ? "border-emerald-300"
-              : "border-amber-200";
+              : isGuest && r.title.includes("逾時")
+                ? "border-red-300"
+                : "border-amber-200";
 
           return (
             <div
@@ -41,6 +44,11 @@ export function ReminderBanner() {
                     {r.maintenanceTicket.asset.code} 號房 · {r.maintenanceTicket.title}
                   </p>
                 )}
+                {r.guestRequest && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    {r.guestRequest.roomNumber} 號房 · {r.guestRequest.hotelName}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 gap-2">
                 {isTicket ? (
@@ -49,6 +57,13 @@ export function ReminderBanner() {
                     className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50"
                   >
                     查看工單
+                  </Link>
+                ) : isGuest ? (
+                  <Link
+                    to="/guest-requests"
+                    className="rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-900 hover:bg-amber-50"
+                  >
+                    住客請求
                   </Link>
                 ) : (
                   <Link
@@ -63,7 +78,7 @@ export function ReminderBanner() {
                   onClick={() => void dismiss(r.id)}
                   className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
                 >
-                  {isRejected || isConfirmed || isTicket ? "已通知客人" : "已通知客人"}
+                  已處理
                 </button>
               </div>
             </div>
