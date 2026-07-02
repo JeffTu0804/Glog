@@ -1,4 +1,4 @@
-import { AssetStatus, TicketStatus } from "@prisma/client";
+import { AssetStatus, Department, TicketStatus, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { withTenantScope } from "../utils/tenantScope.js";
 import type { ResolvedShift } from "./shiftService.js";
@@ -21,6 +21,7 @@ const PRIORITY_LABELS = {
 };
 
 export interface ShiftSnapshot {
+  department: string;
   shift: {
     label: string;
     shiftType: string;
@@ -48,6 +49,10 @@ export interface ShiftSnapshot {
       status: string;
     }>;
   };
+  serviceRequests?: {
+    pending: Array<{ title: string; guestRoom: string; guestName: string; scheduledAt: string }>;
+    handled: Array<{ title: string; guestRoom: string; status: string }>;
+  };
   locations: {
     maintenance: string[];
     outOfOrder: string[];
@@ -61,75 +66,176 @@ export interface ShiftSnapshot {
   };
 }
 
+function rolesForDepartmentFilter(department: Department): UserRole[] {
+  switch (department) {
+    case Department.FRONT_DESK:
+      return [UserRole.FRONT_DESK];
+    case Department.FOOD_BEVERAGE:
+      return [UserRole.FOOD_BEVERAGE];
+    case Department.HOUSEKEEPING:
+      return [UserRole.HOUSEKEEPING];
+    case Department.ENGINEERING:
+      return [UserRole.ENGINEER];
+    case Department.MANAGEMENT:
+      return Object.values(UserRole);
+  }
+}
+
+function departmentIncludesAll(department: Department): boolean {
+  return department === Department.MANAGEMENT;
+}
+
 export async function collectShiftSnapshot(
   tenantId: string,
   shift: ResolvedShift,
   logbookId: string,
+  department: Department,
 ): Promise<ShiftSnapshot> {
   const { shiftStart, shiftEnd } = shift;
+  const deptRoles = rolesForDepartmentFilter(department);
+  const includeAll = departmentIncludesAll(department);
 
-  const [entries, ticketsCreated, ticketsUpdated, openTickets, assets, lowStock, costs] =
-    await Promise.all([
-      prisma.shiftLogEntry.findMany({
-        where: { logbookId, tenantId },
-        include: { author: { select: { name: true } } },
-        orderBy: { createdAt: "asc" },
-      }),
-      prisma.maintenanceTicket.findMany({
-        where: withTenantScope(tenantId, {
-          triggeredAt: { gte: shiftStart, lt: shiftEnd },
-        }),
-        include: {
-          asset: { select: { code: true, name: true } },
-          triggeredBy: { select: { name: true } },
+  const ticketCreatedWhere = includeAll
+    ? { triggeredAt: { gte: shiftStart, lt: shiftEnd } }
+    : {
+        triggeredAt: { gte: shiftStart, lt: shiftEnd },
+        triggeredBy: { role: { in: deptRoles } },
+      };
+
+  const ticketUpdatedWhere = includeAll
+    ? {
+        updatedAt: { gte: shiftStart, lt: shiftEnd },
+        triggeredAt: { lt: shiftStart },
+      }
+    : {
+        updatedAt: { gte: shiftStart, lt: shiftEnd },
+        triggeredAt: { lt: shiftStart },
+        OR: [
+          { triggeredBy: { role: { in: deptRoles } } },
+          { assignedTo: { role: { in: deptRoles } } },
+        ],
+      };
+
+  const openTicketWhere = includeAll
+    ? {
+        status: {
+          in: [
+            TicketStatus.OPEN,
+            TicketStatus.ASSIGNED,
+            TicketStatus.IN_PROGRESS,
+            TicketStatus.PENDING_FRONT_DESK,
+            TicketStatus.COMPLETED,
+          ],
         },
-        orderBy: { triggeredAt: "desc" },
-      }),
-      prisma.maintenanceTicket.findMany({
-        where: withTenantScope(tenantId, {
-          updatedAt: { gte: shiftStart, lt: shiftEnd },
-          triggeredAt: { lt: shiftStart },
-        }),
-        include: {
-          asset: { select: { code: true, name: true } },
-          assignedTo: { select: { name: true } },
+      }
+    : {
+        status: {
+          in: [
+            TicketStatus.OPEN,
+            TicketStatus.ASSIGNED,
+            TicketStatus.IN_PROGRESS,
+            TicketStatus.PENDING_FRONT_DESK,
+            TicketStatus.COMPLETED,
+          ],
         },
-        orderBy: { updatedAt: "desc" },
-        take: 20,
+        OR: [
+          { triggeredBy: { role: { in: deptRoles } } },
+          { assignedTo: { role: { in: deptRoles } } },
+        ],
+      };
+
+  const includeServiceRequests =
+    department === Department.FRONT_DESK ||
+    department === Department.FOOD_BEVERAGE ||
+    department === Department.MANAGEMENT;
+
+  const [
+    entries,
+    ticketsCreated,
+    ticketsUpdated,
+    openTickets,
+    assets,
+    lowStock,
+    costs,
+    serviceRequests,
+  ] = await Promise.all([
+    prisma.shiftLogEntry.findMany({
+      where: { logbookId, tenantId },
+      include: { author: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.maintenanceTicket.findMany({
+      where: withTenantScope(tenantId, ticketCreatedWhere),
+      include: {
+        asset: { select: { code: true, name: true } },
+        triggeredBy: { select: { name: true } },
+      },
+      orderBy: { triggeredAt: "desc" },
+    }),
+    prisma.maintenanceTicket.findMany({
+      where: withTenantScope(tenantId, ticketUpdatedWhere),
+      include: {
+        asset: { select: { code: true, name: true } },
+        assignedTo: { select: { name: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+    }),
+    prisma.maintenanceTicket.findMany({
+      where: withTenantScope(tenantId, openTicketWhere),
+      include: { asset: { select: { code: true, name: true } } },
+      orderBy: { priority: "desc" },
+      take: 30,
+    }),
+    prisma.asset.findMany({
+      where: withTenantScope(tenantId, {
+        status: { in: [AssetStatus.MAINTENANCE, AssetStatus.OUT_OF_ORDER] },
       }),
-      prisma.maintenanceTicket.findMany({
-        where: withTenantScope(tenantId, {
-          status: {
-            in: [
-              TicketStatus.OPEN,
-              TicketStatus.ASSIGNED,
-              TicketStatus.IN_PROGRESS,
-              TicketStatus.PENDING_FRONT_DESK,
-              TicketStatus.COMPLETED,
+      select: { code: true, name: true, status: true },
+    }),
+    prisma.inventory.findMany({
+      where: withTenantScope(tenantId, {}),
+    }),
+    prisma.costLog.findMany({
+      where: withTenantScope(tenantId, {
+        recordedAt: { gte: shiftStart, lt: shiftEnd },
+      }),
+      orderBy: { recordedAt: "desc" },
+      take: 20,
+    }),
+    includeServiceRequests
+      ? prisma.serviceRequest.findMany({
+          where: withTenantScope(tenantId, {
+            OR: [
+              {
+                createdAt: { gte: shiftStart, lt: shiftEnd },
+                ...(includeAll
+                  ? {}
+                  : {
+                      OR: [
+                        { targetDepartment: department },
+                        { sourceDepartment: department },
+                      ],
+                    }),
+              },
+              {
+                updatedAt: { gte: shiftStart, lt: shiftEnd },
+                ...(includeAll
+                  ? {}
+                  : {
+                      OR: [
+                        { targetDepartment: department },
+                        { sourceDepartment: department },
+                      ],
+                    }),
+              },
             ],
-          },
-        }),
-        include: { asset: { select: { code: true, name: true } } },
-        orderBy: { priority: "desc" },
-        take: 30,
-      }),
-      prisma.asset.findMany({
-        where: withTenantScope(tenantId, {
-          status: { in: [AssetStatus.MAINTENANCE, AssetStatus.OUT_OF_ORDER] },
-        }),
-        select: { code: true, name: true, status: true },
-      }),
-      prisma.inventory.findMany({
-        where: withTenantScope(tenantId, {}),
-      }),
-      prisma.costLog.findMany({
-        where: withTenantScope(tenantId, {
-          recordedAt: { gte: shiftStart, lt: shiftEnd },
-        }),
-        orderBy: { recordedAt: "desc" },
-        take: 20,
-      }),
-    ]);
+          }),
+          orderBy: { scheduledAt: "desc" },
+          take: 20,
+        })
+      : Promise.resolve([]),
+  ]);
 
   const lowStockItems = lowStock
     .filter((item) => item.quantity <= item.reorderLevel)
@@ -141,7 +247,8 @@ export async function collectShiftSnapshot(
 
   const costTotal = costs.reduce((sum, c) => sum + Number(c.amount), 0);
 
-  return {
+  const snapshot: ShiftSnapshot = {
+    department,
     shift: {
       label: shift.label,
       shiftType: shift.shiftType,
@@ -190,4 +297,26 @@ export async function collectShiftSnapshot(
       })),
     },
   };
+
+  if (includeServiceRequests && serviceRequests.length > 0) {
+    snapshot.serviceRequests = {
+      pending: serviceRequests
+        .filter((r) => r.status === "PENDING")
+        .map((r) => ({
+          title: r.title,
+          guestRoom: r.guestRoom,
+          guestName: r.guestName,
+          scheduledAt: r.scheduledAt.toISOString(),
+        })),
+      handled: serviceRequests
+        .filter((r) => r.status !== "PENDING")
+        .map((r) => ({
+          title: r.title,
+          guestRoom: r.guestRoom,
+          status: r.status,
+        })),
+    };
+  }
+
+  return snapshot;
 }

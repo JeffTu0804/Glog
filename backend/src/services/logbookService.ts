@@ -1,9 +1,11 @@
-import { ShiftLogbookStatus, type Prisma } from "@prisma/client";
+import { Department, ShiftLogbookStatus, type Prisma } from "@prisma/client";
 import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
+import { DEPARTMENT_LABELS } from "../utils/department.js";
 import { withTenantScope } from "../utils/tenantScope.js";
 import { generateAiSummary } from "./aiSummaryService.js";
 import { collectShiftSnapshot } from "./logbookCollectorService.js";
+import { notifyDepartmentHandover } from "./lineMessagingService.js";
 import {
   formatShiftWindow,
   getShiftLabel,
@@ -26,6 +28,8 @@ export type LogbookPayload = Prisma.ShiftLogbookGetPayload<{
 function serializeLogbook(logbook: LogbookPayload) {
   return {
     id: logbook.id,
+    department: logbook.department,
+    departmentLabel: DEPARTMENT_LABELS[logbook.department],
     shiftType: logbook.shiftType,
     shiftLabel: getShiftLabel(logbook.shiftType),
     shiftDate: logbook.shiftDate.toISOString().slice(0, 10),
@@ -52,13 +56,15 @@ function serializeLogbook(logbook: LogbookPayload) {
 export async function getOrCreateCurrentLogbook(
   tenantId: string,
   userId: string,
+  department: Department,
 ) {
   const shift = resolveCurrentShift();
 
   const logbook = await prisma.shiftLogbook.upsert({
     where: {
-      tenantId_shiftType_shiftDate: {
+      tenantId_department_shiftType_shiftDate: {
         tenantId,
+        department,
         shiftType: shift.shiftType,
         shiftDate: shift.shiftDate,
       },
@@ -66,6 +72,7 @@ export async function getOrCreateCurrentLogbook(
     update: {},
     create: {
       tenantId,
+      department,
       shiftType: shift.shiftType,
       shiftDate: shift.shiftDate,
       shiftStart: shift.shiftStart,
@@ -78,9 +85,15 @@ export async function getOrCreateCurrentLogbook(
   return { shift, logbook: serializeLogbook(logbook) };
 }
 
-export async function getLatestPublishedLogbook(tenantId: string) {
+export async function getLatestPublishedLogbook(
+  tenantId: string,
+  department: Department,
+) {
   const logbook = await prisma.shiftLogbook.findFirst({
-    where: withTenantScope(tenantId, { status: ShiftLogbookStatus.PUBLISHED }),
+    where: withTenantScope(tenantId, {
+      department,
+      status: ShiftLogbookStatus.PUBLISHED,
+    }),
     orderBy: { publishedAt: "desc" },
     include: LOGBOOK_INCLUDE,
   });
@@ -88,9 +101,13 @@ export async function getLatestPublishedLogbook(tenantId: string) {
   return logbook ? serializeLogbook(logbook) : null;
 }
 
-export async function listLogbooks(tenantId: string, limit = 20) {
+export async function listLogbooks(
+  tenantId: string,
+  department: Department,
+  limit = 20,
+) {
   const logbooks = await prisma.shiftLogbook.findMany({
-    where: withTenantScope(tenantId, {}),
+    where: withTenantScope(tenantId, { department }),
     orderBy: [{ shiftDate: "desc" }, { shiftStart: "desc" }],
     take: limit,
     include: LOGBOOK_INCLUDE,
@@ -181,7 +198,12 @@ export async function publishLogbook(
     label: getShiftLabel(logbook.shiftType),
   };
 
-  const snapshot = await collectShiftSnapshot(tenantId, shift, logbookId);
+  const snapshot = await collectShiftSnapshot(
+    tenantId,
+    shift,
+    logbookId,
+    logbook.department,
+  );
   const ai = await generateAiSummary(snapshot);
 
   const updated = await prisma.shiftLogbook.update({
@@ -198,7 +220,21 @@ export async function publishLogbook(
     include: LOGBOOK_INCLUDE,
   });
 
-  return serializeLogbook(updated);
+  const serialized = serializeLogbook(updated);
+
+  void notifyDepartmentHandover({
+    tenantId,
+    department: logbook.department,
+    shiftLabel: serialized.shiftLabel,
+    shiftDate: serialized.shiftDate,
+    shiftWindow: serialized.shiftWindow,
+    publishedByName: serialized.publishedBy?.name ?? "同仁",
+    aiSummary: serialized.aiSummary ?? "",
+    highlights: serialized.highlights,
+    openItems: serialized.openItems,
+  });
+
+  return serialized;
 }
 
 export async function refreshAiSummary(tenantId: string, logbookId: string) {
@@ -218,7 +254,12 @@ export async function refreshAiSummary(tenantId: string, logbookId: string) {
     label: getShiftLabel(logbook.shiftType),
   };
 
-  const snapshot = await collectShiftSnapshot(tenantId, shift, logbookId);
+  const snapshot = await collectShiftSnapshot(
+    tenantId,
+    shift,
+    logbookId,
+    logbook.department,
+  );
   const ai = await generateAiSummary(snapshot);
 
   const updated = await prisma.shiftLogbook.update({

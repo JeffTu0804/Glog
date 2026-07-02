@@ -8,6 +8,8 @@ export const DEPARTMENT_LABELS: Record<Department, string> = {
   MANAGEMENT: "管理層",
 };
 
+export const ALL_DEPARTMENTS = Object.values(Department);
+
 export function roleToDepartment(role: UserRole): Department {
   switch (role) {
     case UserRole.FRONT_DESK:
@@ -23,6 +25,29 @@ export function roleToDepartment(role: UserRole): Department {
     default:
       return Department.FRONT_DESK;
   }
+}
+
+export function rolesForDepartment(department: Department): UserRole[] {
+  switch (department) {
+    case Department.FRONT_DESK:
+      return [UserRole.FRONT_DESK];
+    case Department.FOOD_BEVERAGE:
+      return [UserRole.FOOD_BEVERAGE];
+    case Department.HOUSEKEEPING:
+      return [UserRole.HOUSEKEEPING];
+    case Department.ENGINEERING:
+      return [UserRole.ENGINEER];
+    case Department.MANAGEMENT:
+      return [UserRole.ADMIN];
+  }
+}
+
+export function canAccessDepartment(
+  role: UserRole,
+  department: Department,
+): boolean {
+  if (role === UserRole.ADMIN) return true;
+  return roleToDepartment(role) === department;
 }
 
 export function canHandleDepartment(

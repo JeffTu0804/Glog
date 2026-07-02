@@ -39,6 +39,7 @@ authRouter.post(
       hotelName,
       slug,
       adminName,
+      lineUserId: auth.lineSub,
     });
 
     res.status(201).json(result);

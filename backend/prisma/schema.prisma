@@ -192,6 +192,7 @@ model User {
   role           UserRole   /// 角色權限
   status         UserStatus @default(IDLE) /// 即時狀態（閒置/忙碌），供派單演算法使用
   skills         String[]   /// 專業標籤（如 "plumbing", "electrical", "hvac"），供智能派單匹配
+  lineUserId     String?    /// LINE 使用者 ID（OAuth sub），供交班推播
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -211,6 +212,7 @@ model User {
   @@unique([tenantId, email]) /// 同一租戶內 email 不可重複
   @@index([tenantId])
   @@index([tenantId, role, status]) /// 加速派單查詢：依角色與狀態篩選可用工程師
+  @@index([tenantId, lineUserId])
 }
 
 /// 資產（Asset）— 客房或硬體設備，追蹤運作狀態
@@ -333,6 +335,7 @@ model CostLog {
 model ShiftLogbook {
   id            String             @id @default(cuid())
   tenantId      String
+  department    Department         @default(FRONT_DESK) /// 所屬部門，各部門獨立交班日誌
   shiftType     ShiftType
   shiftDate     DateTime           @db.Date /// 班別起始日（台北時間）
   shiftStart    DateTime           /// 班別開始（UTC）
@@ -353,9 +356,9 @@ model ShiftLogbook {
   publishedBy User?           @relation("LogbookPublishedBy", fields: [publishedById], references: [id])
   entries     ShiftLogEntry[]
 
-  @@unique([tenantId, shiftType, shiftDate])
-  @@index([tenantId, status])
-  @@index([tenantId, publishedAt])
+  @@unique([tenantId, department, shiftType, shiftDate])
+  @@index([tenantId, department, status])
+  @@index([tenantId, department, publishedAt])
 }
 
 /// 班別內手動備註

@@ -9,6 +9,7 @@ export interface RegisterHotelInput {
   hotelName: string;
   slug: string;
   adminName: string;
+  lineUserId?: string;
 }
 
 function normalizeSlug(slug: string): string {
@@ -69,6 +70,7 @@ export async function registerHotel(input: RegisterHotelInput) {
         name: input.adminName.trim(),
         role: UserRole.ADMIN,
         skills: ["management"],
+        lineUserId: input.lineUserId?.trim() || undefined,
       },
       select: {
         id: true,

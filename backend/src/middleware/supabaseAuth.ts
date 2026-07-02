@@ -5,6 +5,7 @@ import { getSupabase } from "../lib/supabase.js";
 export interface SupabaseAuthUser {
   id: string;
   email: string;
+  lineSub?: string;
 }
 
 declare global {
@@ -41,6 +42,10 @@ export async function authenticateSupabase(
     req.supabaseAuth = {
       id: data.user.id,
       email: data.user.email ?? "",
+      lineSub:
+        typeof data.user.user_metadata?.line_sub === "string"
+          ? data.user.user_metadata.line_sub
+          : undefined,
     };
 
     next();

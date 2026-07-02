@@ -1,4 +1,4 @@
-import type { UserRole } from "@prisma/client";
+import type { Department, UserRole } from "@prisma/client";
 
 export interface AuthenticatedUser {
   id: string;
@@ -7,6 +7,7 @@ export interface AuthenticatedUser {
   role: UserRole;
   email: string;
   name: string;
+  department: Department;
 }
 
 declare global {

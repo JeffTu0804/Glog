@@ -2,6 +2,8 @@ import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
 import { getSupabase } from "../lib/supabase.js";
+import { syncLineUserId } from "../services/lineMessagingService.js";
+import { roleToDepartment } from "../utils/department.js";
 
 /**
  * 驗證 Supabase JWT，並從 Prisma User 表載入 tenantId 與 role。
@@ -35,6 +37,14 @@ export async function authenticate(
       throw new AppError(403, "使用者尚未在系統中註冊，請聯繫管理員");
     }
 
+    const lineSub =
+      typeof data.user.user_metadata?.line_sub === "string"
+        ? data.user.user_metadata.line_sub
+        : undefined;
+    if (lineSub) {
+      void syncLineUserId(data.user.id, lineSub);
+    }
+
     req.user = {
       id: dbUser.id,
       tenantId: dbUser.tenantId,
@@ -42,6 +52,7 @@ export async function authenticate(
       role: dbUser.role,
       email: dbUser.email,
       name: dbUser.name,
+      department: roleToDepartment(dbUser.role),
     };
 
     next();

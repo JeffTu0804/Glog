@@ -1,6 +1,13 @@
 import { Router } from "express";
+import type { UserRole } from "@prisma/client";
+import { Department } from "@prisma/client";
+import { AppError } from "../errors/AppError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { getParamId } from "../utils/validators.js";
+import {
+  canAccessDepartment,
+  roleToDepartment,
+} from "../utils/department.js";
+import { getParamId, parseEnumValue } from "../utils/validators.js";
 import {
   addLogEntry,
   getLatestPublishedLogbook,
@@ -14,19 +21,39 @@ import { formatShiftWindow } from "../services/shiftService.js";
 
 export const logbookRouter = Router();
 
-/** GET /api/v1/logbook/current — 目前班別日誌 + 上一班交班摘要 */
+const VALID_DEPARTMENTS = Object.values(Department);
+
+function parseDepartmentQuery(
+  value: unknown,
+  userRole: UserRole,
+): Department {
+  const department =
+    value != null && value !== ""
+      ? parseEnumValue(value, VALID_DEPARTMENTS, "department")
+      : roleToDepartment(userRole);
+
+  if (!canAccessDepartment(userRole, department)) {
+    throw new AppError(403, "無權限存取此部門的交班日誌");
+  }
+
+  return department;
+}
+
+/** GET /api/v1/logbook/current?department=FRONT_DESK — 目前班別日誌 + 上一班交班摘要 */
 logbookRouter.get(
   "/current",
   asyncHandler(async (req, res) => {
     const tenantId = req.user!.tenantId;
     const userId = req.user!.id;
+    const department = parseDepartmentQuery(req.query.department, req.user!.role);
 
     const [{ shift, logbook }, previousHandover] = await Promise.all([
-      getOrCreateCurrentLogbook(tenantId, userId),
-      getLatestPublishedLogbook(tenantId),
+      getOrCreateCurrentLogbook(tenantId, userId, department),
+      getLatestPublishedLogbook(tenantId, department),
     ]);
 
     res.json({
+      department,
       shift: {
         type: shift.shiftType,
         label: shift.label,
@@ -40,12 +67,13 @@ logbookRouter.get(
   }),
 );
 
-/** GET /api/v1/logbook — 歷史交班日誌列表 */
+/** GET /api/v1/logbook?department=FRONT_DESK — 歷史交班日誌列表 */
 logbookRouter.get(
   "/",
   asyncHandler(async (req, res) => {
-    const logbooks = await listLogbooks(req.user!.tenantId);
-    res.json({ logbooks });
+    const department = parseDepartmentQuery(req.query.department, req.user!.role);
+    const logbooks = await listLogbooks(req.user!.tenantId, department);
+    res.json({ department, logbooks });
   }),
 );
 
@@ -54,6 +82,9 @@ logbookRouter.get(
   "/:id",
   asyncHandler(async (req, res) => {
     const logbook = await getLogbook(req.user!.tenantId, getParamId(req.params, "日誌 ID"));
+    if (!canAccessDepartment(req.user!.role, logbook.department as Department)) {
+      throw new AppError(403, "無權限存取此部門的交班日誌");
+    }
     res.json({ logbook });
   }),
 );
@@ -68,6 +99,11 @@ logbookRouter.post(
       return;
     }
 
+    const existing = await getLogbook(req.user!.tenantId, getParamId(req.params, "日誌 ID"));
+    if (!canAccessDepartment(req.user!.role, existing.department as Department)) {
+      throw new AppError(403, "無權限存取此部門的交班日誌");
+    }
+
     const result = await addLogEntry(
       req.user!.tenantId,
       req.user!.id,
@@ -79,10 +115,15 @@ logbookRouter.post(
   }),
 );
 
-/** POST /api/v1/logbook/:id/publish — 產生 AI 摘要並交班 */
+/** POST /api/v1/logbook/:id/publish — 產生 AI 摘要並交班，推播 LINE 通知 */
 logbookRouter.post(
   "/:id/publish",
   asyncHandler(async (req, res) => {
+    const existing = await getLogbook(req.user!.tenantId, getParamId(req.params, "日誌 ID"));
+    if (!canAccessDepartment(req.user!.role, existing.department as Department)) {
+      throw new AppError(403, "無權限存取此部門的交班日誌");
+    }
+
     const logbook = await publishLogbook(
       req.user!.tenantId,
       req.user!.id,
@@ -96,6 +137,11 @@ logbookRouter.post(
 logbookRouter.post(
   "/:id/refresh-summary",
   asyncHandler(async (req, res) => {
+    const existing = await getLogbook(req.user!.tenantId, getParamId(req.params, "日誌 ID"));
+    if (!canAccessDepartment(req.user!.role, existing.department as Department)) {
+      throw new AppError(403, "無權限存取此部門的交班日誌");
+    }
+
     const logbook = await refreshAiSummary(
       req.user!.tenantId,
       getParamId(req.params, "日誌 ID"),
