@@ -9,6 +9,8 @@ export interface LineProfile {
   email?: string;
 }
 
+export type LineLoginTarget = "hotel" | "platform";
+
 function getLineConfig() {
   const channelId = process.env.LINE_CHANNEL_ID?.trim();
   const channelSecret = process.env.LINE_CHANNEL_SECRET?.trim();
@@ -27,19 +29,16 @@ function getLineConfig() {
   return { channelId, channelSecret, redirectUri, frontendUrl };
 }
 
-export function createLineOAuthState(): string {
-  const { channelSecret } = getLineConfig();
-  const payload = `${Date.now()}:${randomBytes(12).toString("hex")}`;
-  const sig = createHmac("sha256", channelSecret).update(payload).digest("hex");
-  return Buffer.from(`${payload}.${sig}`).toString("base64url");
+function normalizeTarget(target?: string): LineLoginTarget {
+  return target === "platform" ? "platform" : "hotel";
 }
 
-export function verifyLineOAuthState(state: string): boolean {
+function decodeAndVerifyState(state: string): { target: LineLoginTarget } | null {
   try {
     const { channelSecret } = getLineConfig();
     const decoded = Buffer.from(state, "base64url").toString("utf8");
     const dot = decoded.lastIndexOf(".");
-    if (dot === -1) return false;
+    if (dot === -1) return null;
 
     const payload = decoded.slice(0, dot);
     const sig = decoded.slice(dot + 1);
@@ -49,14 +48,32 @@ export function verifyLineOAuthState(state: string): boolean {
 
     const sigBuf = Buffer.from(sig, "hex");
     const expectedBuf = Buffer.from(expected, "hex");
-    if (sigBuf.length !== expectedBuf.length) return false;
-    if (!timingSafeEqual(sigBuf, expectedBuf)) return false;
+    if (sigBuf.length !== expectedBuf.length) return null;
+    if (!timingSafeEqual(sigBuf, expectedBuf)) return null;
 
-    const ts = Number(payload.split(":")[0]);
-    return Number.isFinite(ts) && Date.now() - ts < 10 * 60 * 1000;
+    const [tsRaw, _nonce, targetRaw] = payload.split(":");
+    const ts = Number(tsRaw);
+    if (!Number.isFinite(ts) || Date.now() - ts >= 10 * 60 * 1000) return null;
+
+    return { target: normalizeTarget(targetRaw) };
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function createLineOAuthState(target?: string): string {
+  const { channelSecret } = getLineConfig();
+  const payload = `${Date.now()}:${randomBytes(12).toString("hex")}:${normalizeTarget(target)}`;
+  const sig = createHmac("sha256", channelSecret).update(payload).digest("hex");
+  return Buffer.from(`${payload}.${sig}`).toString("base64url");
+}
+
+export function verifyLineOAuthState(state: string): boolean {
+  return decodeAndVerifyState(state) !== null;
+}
+
+export function getLineOAuthTarget(state: string): LineLoginTarget {
+  return decodeAndVerifyState(state)?.target ?? "hotel";
 }
 
 export function buildLineAuthorizeUrl(state: string): string {
@@ -130,7 +147,10 @@ function lineEmail(profile: LineProfile): string {
   return `line_${profile.sub}@line.oauth.local`;
 }
 
-export async function createLineSignInLink(profile: LineProfile): Promise<string> {
+export async function createLineSignInLink(
+  profile: LineProfile,
+  target: LineLoginTarget = "hotel",
+): Promise<string> {
   const admin = getSupabaseAdmin();
   const email = lineEmail(profile);
 
@@ -153,7 +173,7 @@ export async function createLineSignInLink(profile: LineProfile): Promise<string
   const { data, error } = await admin.auth.admin.generateLink({
     type: "magiclink",
     email,
-    options: { redirectTo: `${frontendUrl}/auth/callback` },
+    options: { redirectTo: `${frontendUrl}/auth/callback?target=${target}` },
   });
 
   if (error || !data.properties?.action_link) {

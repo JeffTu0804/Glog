@@ -5,6 +5,7 @@ import {
   createLineOAuthState,
   createLineSignInLink,
   exchangeLineCode,
+  getLineOAuthTarget,
   verifyLineOAuthState,
 } from "../services/lineAuthService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -17,8 +18,12 @@ export const lineAuthRouter = Router();
  */
 lineAuthRouter.get(
   "/login",
-  asyncHandler(async (_req, res) => {
-    const state = createLineOAuthState();
+  asyncHandler(async (req, res) => {
+    const target =
+      typeof req.query.target === "string" && req.query.target === "platform"
+        ? "platform"
+        : "hotel";
+    const state = createLineOAuthState(target);
     res.redirect(buildLineAuthorizeUrl(state));
   }),
 );
@@ -35,10 +40,11 @@ lineAuthRouter.get(
     const lineError = typeof req.query.error === "string" ? req.query.error : "";
 
     const frontendUrl = process.env.FRONTEND_URL?.trim() || "http://localhost:5173";
+    const loginPath = getLineOAuthTarget(state) === "platform" ? "/manager/login" : "/login";
 
     if (lineError) {
       res.redirect(
-        `${frontendUrl}/login?error=${encodeURIComponent(`LINE 授權失敗：${lineError}`)}`,
+        `${frontendUrl}${loginPath}?error=${encodeURIComponent(`LINE 授權失敗：${lineError}`)}`,
       );
       return;
     }
@@ -56,7 +62,7 @@ lineAuthRouter.get(
       throw new AppError(502, "無法取得 LINE 使用者識別");
     }
 
-    const actionLink = await createLineSignInLink(profile);
+    const actionLink = await createLineSignInLink(profile, getLineOAuthTarget(state));
     res.redirect(actionLink);
   }),
 );

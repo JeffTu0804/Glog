@@ -205,3 +205,12 @@ export async function getTenantAssets(tenantId: string) {
     orderBy: { code: "asc" },
   });
 }
+
+export async function getTenantInventory(tenantId: string) {
+  await findTenantOrThrow(tenantId);
+
+  return prisma.inventory.findMany({
+    where: { tenantId },
+    orderBy: [{ quantity: "asc" }, { name: "asc" }],
+  });
+}

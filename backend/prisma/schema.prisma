@@ -143,7 +143,23 @@ enum ReminderStatus {
 // Models
 // ---------------------------------------------------------------------------
 
-/// 平台管理員（PlatformAdmin）— glog SaaS 營運人員，不隸屬任何租戶，可跨租戶查詢
+/// Auth 擴充資料（public.profiles）— 對應 auth.users，控制前台/Manager 入口
+model AuthProfile {
+  id                  String   @id @db.Uuid /// 對應 auth.users.id
+  email               String?
+  name                String?
+  role                String   @default("user") /// user / manager
+  managerAccessStatus String   @default("none") @map("manager_access_status") /// none / pending / approved / rejected
+  managerRequestedAt  DateTime? @map("manager_requested_at") @db.Timestamptz(6)
+  managerReviewedAt   DateTime? @map("manager_reviewed_at") @db.Timestamptz(6)
+  managerReviewedBy   String?  @map("manager_reviewed_by") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("profiles")
+}
+
+/// 平台管理員（PlatformAdmin）— 保留既有資料；實際 Manager 入口改由 profiles.role 控制
 model PlatformAdmin {
   id             String   @id @default(cuid())
   supabaseUserId String   @unique /// 對應 Supabase Auth UUID

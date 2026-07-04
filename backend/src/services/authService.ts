@@ -53,6 +53,23 @@ export async function registerHotel(input: RegisterHotelInput) {
   const email = input.email.trim().toLowerCase();
 
   return prisma.$transaction(async (tx) => {
+    await tx.authProfile.upsert({
+      where: { id: input.supabaseUserId },
+      update: {
+        email,
+        name: input.adminName.trim(),
+        role: "user",
+        managerAccessStatus: "none",
+      },
+      create: {
+        id: input.supabaseUserId,
+        email,
+        name: input.adminName.trim(),
+        role: "user",
+        managerAccessStatus: "none",
+      },
+    });
+
     const tenant = await tx.tenant.create({
       data: {
         name: input.hotelName.trim(),

@@ -36,6 +36,23 @@ async function main() {
   console.log(`✅ Tenant: ${tenant.name} (${tenant.id})`);
 
   if (supabaseUserId) {
+    await prisma.authProfile.upsert({
+      where: { id: supabaseUserId },
+      update: {
+        email: "admin@demo-hotel.com",
+        name: "Demo 管理員",
+        role: "user",
+        managerAccessStatus: "none",
+      },
+      create: {
+        id: supabaseUserId,
+        email: "admin@demo-hotel.com",
+        name: "Demo 管理員",
+        role: "user",
+        managerAccessStatus: "none",
+      },
+    });
+
     const admin = await prisma.user.upsert({
       where: { supabaseUserId },
       update: {},
@@ -55,6 +72,23 @@ async function main() {
   const engineerSupabaseUserId = process.env.SEED_ENGINEER_SUPABASE_USER_ID;
 
   if (engineerSupabaseUserId) {
+    await prisma.authProfile.upsert({
+      where: { id: engineerSupabaseUserId },
+      update: {
+        email: "engineer@demo-hotel.com",
+        name: "Demo 工程師",
+        role: "user",
+        managerAccessStatus: "none",
+      },
+      create: {
+        id: engineerSupabaseUserId,
+        email: "engineer@demo-hotel.com",
+        name: "Demo 工程師",
+        role: "user",
+        managerAccessStatus: "none",
+      },
+    });
+
     const engineer = await prisma.user.upsert({
       where: { supabaseUserId: engineerSupabaseUserId },
       update: {},
@@ -102,6 +136,23 @@ async function main() {
   const platformAdminId = process.env.SEED_PLATFORM_ADMIN_SUPABASE_USER_ID;
 
   if (platformAdminId) {
+    await prisma.authProfile.upsert({
+      where: { id: platformAdminId },
+      update: {
+        email: "platform@glog.app",
+        name: "glog 平台管理員",
+        role: "manager",
+        managerAccessStatus: "approved",
+      },
+      create: {
+        id: platformAdminId,
+        email: "platform@glog.app",
+        name: "glog 平台管理員",
+        role: "manager",
+        managerAccessStatus: "approved",
+      },
+    });
+
     const platformAdmin = await prisma.platformAdmin.upsert({
       where: { supabaseUserId: platformAdminId },
       update: {},

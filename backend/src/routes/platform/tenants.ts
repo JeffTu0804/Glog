@@ -5,6 +5,7 @@ import {
   getPlatformOverview,
   getTenantAssets,
   getTenantCostLogs,
+  getTenantInventory,
   getTenantTickets,
   getTenantUsers,
   listTenants,
@@ -155,5 +156,17 @@ platformTenantsRouter.get(
   asyncHandler(async (req, res) => {
     const assets = await getTenantAssets(getParamId(req.params, "租戶 ID"));
     res.json({ assets });
+  }),
+);
+
+/**
+ * GET /api/platform/v1/tenants/:id/inventory
+ * 租戶耗材庫存
+ */
+platformTenantsRouter.get(
+  "/tenants/:id/inventory",
+  asyncHandler(async (req, res) => {
+    const items = await getTenantInventory(getParamId(req.params, "租戶 ID"));
+    res.json({ items });
   }),
 );
