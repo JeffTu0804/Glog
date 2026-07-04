@@ -1,15 +1,25 @@
 import { Link } from "react-router-dom";
 import { signInWithLine } from "../lib/auth";
+import type { LoginTarget } from "../context/AuthContext";
 
 interface OAuthButtonsProps {
   onError: (message: string) => void;
   disabled?: boolean;
+  target?: LoginTarget;
+  buttonLabel?: string;
+  dividerLabel?: string;
 }
 
-export function OAuthButtons({ onError, disabled }: OAuthButtonsProps) {
+export function OAuthButtons({
+  onError,
+  disabled,
+  target = "hotel",
+  buttonLabel = "使用 LINE 登入",
+  dividerLabel = "或",
+}: OAuthButtonsProps) {
   function handleLineLogin() {
     try {
-      signInWithLine();
+      signInWithLine(target);
     } catch (err) {
       onError(err instanceof Error ? err.message : "LINE 登入失敗");
     }
@@ -22,7 +32,7 @@ export function OAuthButtons({ onError, disabled }: OAuthButtonsProps) {
           <div className="w-full border-t border-slate-200" />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-white px-2 text-slate-500">或</span>
+          <span className="bg-white px-2 text-slate-500">{dividerLabel}</span>
         </div>
       </div>
 
@@ -33,7 +43,7 @@ export function OAuthButtons({ onError, disabled }: OAuthButtonsProps) {
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#06C755] py-2.5 text-sm font-medium text-white hover:bg-[#05b34c] disabled:opacity-50"
       >
         <LineIcon />
-        使用 LINE 登入
+        {buttonLabel}
       </button>
     </div>
   );

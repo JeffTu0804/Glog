@@ -13,7 +13,7 @@ export function LandingPage() {
   }
 
   if (session && isPlatformAdmin && !profile) {
-    return <Navigate to="/platform" replace />;
+    return <Navigate to="/manager" replace />;
   }
   if (session && profile) {
     return <Navigate to="/dashboard" replace />;
@@ -27,7 +27,7 @@ export function LandingPage() {
           to="/login"
           className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium backdrop-blur hover:bg-white/20"
         >
-          登入
+          飯店登入
         </Link>
       </header>
 
@@ -50,11 +50,31 @@ export function LandingPage() {
             飯店員工登入
           </Link>
           <Link
-            to="/login"
+            to="/manager/login"
             className="rounded-xl border border-white/20 px-8 py-3 font-medium text-white hover:bg-white/10"
           >
-            平台管理員登入
+            glog Manager
           </Link>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 pb-10">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-left backdrop-blur">
+          <p className="text-sm font-medium text-indigo-300">雙入口架構</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-slate-950/20 p-5">
+              <h3 className="font-semibold text-white">glog 飯店系統</h3>
+              <p className="mt-2 text-sm text-slate-300">
+                給飯店員工使用，處理工單、交班、住客請求與 QR 管理。
+              </p>
+            </div>
+            <div className="rounded-xl border border-violet-400/20 bg-violet-500/10 p-5">
+              <h3 className="font-semibold text-white">glog Manager</h3>
+              <p className="mt-2 text-sm text-slate-300">
+                給平台營運團隊使用，管理租戶、方案與平台功能設定。
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 

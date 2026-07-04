@@ -1,0 +1,326 @@
+import { type FormEvent, useEffect, useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { useAuth, type LoginTarget } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
+
+interface ForgotPasswordPageProps {
+  target: LoginTarget;
+  title: string;
+  subtitle: string;
+  brandSuffix?: string;
+}
+
+interface ResetPasswordPageProps extends ForgotPasswordPageProps {}
+
+function loginPath(target: LoginTarget) {
+  return target === "platform" ? "/manager/login" : "/login";
+}
+
+function resetPath(target: LoginTarget) {
+  return target === "platform" ? "/manager/reset-password" : "/reset-password";
+}
+
+function ForgotPasswordPageContent({
+  target,
+  title,
+  subtitle,
+  brandSuffix,
+}: ForgotPasswordPageProps) {
+  const { session, profile, isPlatformAdmin, loading } = useAuth();
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!loading && session) {
+    if (isPlatformAdmin) return <Navigate to="/manager" replace />;
+    if (profile) return <Navigate to="/dashboard" replace />;
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setSubmitting(true);
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}${resetPath(target)}?target=${target}`,
+      });
+
+      if (resetError) throw resetError;
+
+      setSuccess("已寄出重設密碼信件，請到您的 Email 開啟連結。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "寄送失敗");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-bold text-slate-900">
+            glog
+            {brandSuffix ? <span className="ml-2 text-indigo-600">{brandSuffix}</span> : null}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+        </div>
+
+        <div className="mb-6 rounded-lg bg-slate-100 px-4 py-3 text-center text-sm font-medium text-slate-700">
+          {title}
+        </div>
+
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+          <div>
+            <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            />
+          </div>
+
+          {error && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+          )}
+          {success && (
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {success}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {submitting ? "寄送中…" : "寄送重設信"}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center text-sm">
+          <Link to={loginPath(target)} className="text-slate-500 hover:text-slate-900 hover:underline">
+            返回登入
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResetPasswordPageContent({
+  target,
+  title,
+  subtitle,
+  brandSuffix,
+}: ResetPasswordPageProps) {
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loadingSession, setLoadingSession] = useState(true);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const timer = setTimeout(() => {
+      if (active) {
+        setLoadingSession(false);
+        setError("重設連結無效或已過期，請重新申請忘記密碼。");
+      }
+    }, 3000);
+
+    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!active) return;
+      if (sessionError) {
+        clearTimeout(timer);
+        setLoadingSession(false);
+        setError(sessionError.message);
+        return;
+      }
+      if (data.session) {
+        clearTimeout(timer);
+        setReady(true);
+        setLoadingSession(false);
+      }
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && session) {
+        clearTimeout(timer);
+        setReady(true);
+        setLoadingSession(false);
+      }
+    });
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      subscription.subscription.unsubscribe();
+    };
+  }, []);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (password.length < 6) {
+      setError("密碼至少需要 6 個字元");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("兩次輸入的密碼不一致");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) throw updateError;
+
+      await supabase.auth.signOut();
+      navigate(`${loginPath(target)}?reset=success`, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重設密碼失敗");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-8 text-center">
+          <h1 className="text-2xl font-bold text-slate-900">
+            glog
+            {brandSuffix ? <span className="ml-2 text-indigo-600">{brandSuffix}</span> : null}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+        </div>
+
+        <div className="mb-6 rounded-lg bg-slate-100 px-4 py-3 text-center text-sm font-medium text-slate-700">
+          {title}
+        </div>
+
+        {loadingSession ? (
+          <p className="text-center text-sm text-slate-500">正在驗證重設連結…</p>
+        ) : !ready ? (
+          <div className="space-y-4">
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+            <div className="text-center text-sm">
+              <Link
+                to={target === "platform" ? "/manager/forgot-password" : "/forgot-password"}
+                className="text-indigo-600 hover:underline"
+              >
+                重新申請忘記密碼
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+            <div>
+              <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+                新密碼
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="confirmPassword"
+                className="mb-1 block text-sm font-medium text-slate-700"
+              >
+                確認新密碼
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            </div>
+
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {submitting ? "更新中…" : "更新密碼"}
+            </button>
+          </form>
+        )}
+
+        <div className="mt-6 text-center text-sm">
+          <Link to={loginPath(target)} className="text-slate-500 hover:text-slate-900 hover:underline">
+            返回登入
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ForgotPasswordPage() {
+  return (
+    <ForgotPasswordPageContent
+      target="hotel"
+      title="忘記密碼"
+      subtitle="飯店後勤管理系統"
+    />
+  );
+}
+
+export function ManagerForgotPasswordPage() {
+  return (
+    <ForgotPasswordPageContent
+      target="platform"
+      title="Manager 忘記密碼"
+      subtitle="平台營運與租戶管理"
+      brandSuffix="Manager"
+    />
+  );
+}
+
+export function ResetPasswordPage() {
+  return (
+    <ResetPasswordPageContent
+      target="hotel"
+      title="重新設定密碼"
+      subtitle="飯店後勤管理系統"
+    />
+  );
+}
+
+export function ManagerResetPasswordPage() {
+  return (
+    <ResetPasswordPageContent
+      target="platform"
+      title="Manager 重新設定密碼"
+      subtitle="平台營運與租戶管理"
+      brandSuffix="Manager"
+    />
+  );
+}

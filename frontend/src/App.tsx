@@ -12,7 +12,14 @@ import { LogbookPage } from "./pages/LogbookPage";
 import { GuestRequestsPage } from "./pages/GuestRequestsPage";
 import { GuestScanPage } from "./pages/GuestScanPage";
 import { QrRoomsPage } from "./pages/QrRoomsPage";
-import { LoginPage } from "./pages/LoginPage";
+import { LoginPage, ManagerLoginPage } from "./pages/LoginPage";
+import { ManagerApplyPage } from "./pages/ManagerApplyPage";
+import {
+  ForgotPasswordPage,
+  ManagerForgotPasswordPage,
+  ManagerResetPasswordPage,
+  ResetPasswordPage,
+} from "./pages/PasswordRecoveryPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ServiceRequestsPage } from "./pages/ServiceRequestsPage";
 import { TicketDetailPage } from "./pages/TicketDetailPage";
@@ -33,14 +40,14 @@ function HotelProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!session) return <Navigate to="/login" replace />;
-  if (isPlatformAdmin && !profile) return <Navigate to="/platform" replace />;
+  if (isPlatformAdmin && !profile) return <Navigate to="/manager" replace />;
   if (!profile) return <Navigate to="/register/complete" replace />;
 
   return <>{children}</>;
 }
 
 function PlatformProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, isPlatformAdmin, loading } = useAuth();
+  const { session, isPlatformAdmin, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -50,8 +57,10 @@ function PlatformProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!session) return <Navigate to="/login" replace />;
-  if (!isPlatformAdmin) return <Navigate to="/dashboard" replace />;
+  if (!session) return <Navigate to="/manager/login" replace />;
+  if (!isPlatformAdmin) {
+    return <Navigate to={profile ? "/dashboard" : "/manager/login"} replace />;
+  }
 
   return <>{children}</>;
 }
@@ -69,6 +78,12 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/manager/login" element={<ManagerLoginPage />} />
+      <Route path="/manager/apply" element={<ManagerApplyPage />} />
+      <Route path="/manager/forgot-password" element={<ManagerForgotPasswordPage />} />
+      <Route path="/manager/reset-password" element={<ManagerResetPasswordPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/register/complete" element={<CompleteRegistrationPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
@@ -115,8 +130,9 @@ export default function App() {
           </PlatformProtectedRoute>
         }
       >
-        <Route path="platform" element={<PlatformDashboardPage />} />
-        <Route path="platform/tenants/:id" element={<TenantDetailPage />} />
+        <Route path="platform/*" element={<Navigate to="/manager" replace />} />
+        <Route path="manager" element={<PlatformDashboardPage />} />
+        <Route path="manager/tenants/:id" element={<TenantDetailPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

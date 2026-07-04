@@ -3,7 +3,12 @@ import { Link } from "react-router-dom";
 import { PlanBadge, SubscriptionBadge } from "../../components/PlatformBadges";
 import { useAuth } from "../../context/AuthContext";
 import { platformApi } from "../../lib/platformApi";
-import type { PlatformOverview, SubscriptionStatus, Tenant } from "../../types/platform";
+import type {
+  ManagerAccessRequest,
+  PlatformOverview,
+  SubscriptionStatus,
+  Tenant,
+} from "../../types/platform";
 
 const STATUS_FILTERS: { value: SubscriptionStatus | ""; label: string }[] = [
   { value: "", label: "全部狀態" },
@@ -16,6 +21,7 @@ export function PlatformDashboardPage() {
   const { getToken } = useAuth();
   const [stats, setStats] = useState<PlatformOverview | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [accessRequests, setAccessRequests] = useState<ManagerAccessRequest[]>([]);
   const [filter, setFilter] = useState<SubscriptionStatus | "">("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -26,19 +32,31 @@ export function PlatformDashboardPage() {
     setError("");
     try {
       const token = await getToken();
-      const [statsRes, tenantsRes] = await Promise.all([
+      const [statsRes, tenantsRes, requestsRes] = await Promise.all([
         platformApi.getStats(token),
         platformApi.getTenants(token, {
           status: filter || undefined,
           search: search || undefined,
         }),
+        platformApi.getAccessRequests(token),
       ]);
       setStats(statsRes.stats);
       setTenants(tenantsRes.tenants);
+      setAccessRequests(requestsRes.requests);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入失敗");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleReview(id: string, decision: "approve" | "reject") {
+    try {
+      const token = await getToken();
+      await platformApi.reviewAccessRequest(token, id, decision);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "審核失敗");
     }
   }
 
@@ -49,8 +67,8 @@ export function PlatformDashboardPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">平台營運總覽</h1>
-        <p className="mt-1 text-sm text-slate-400">管理所有租用 glog 的飯店客戶</p>
+        <h1 className="text-2xl font-bold text-white">glog Manager</h1>
+        <p className="mt-1 text-sm text-slate-400">管理所有租用 glog 的飯店客戶與平台營運設定</p>
       </div>
 
       {stats && (
@@ -71,6 +89,58 @@ export function PlatformDashboardPage() {
           ))}
         </div>
       )}
+
+      <div className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Manager 權限申請</h2>
+            <p className="mt-1 text-sm text-slate-400">新申請者會先停留在待審核，核准後才能登入 Manager 後台。</p>
+          </div>
+          <span className="rounded-full bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-300">
+            待審核 {accessRequests.length}
+          </span>
+        </div>
+
+        {accessRequests.length === 0 ? (
+          <p className="text-sm text-slate-500">目前沒有待審核的 Manager 權限申請。</p>
+        ) : (
+          <div className="space-y-3">
+            {accessRequests.map((request) => (
+              <div
+                key={request.id}
+                className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-4 lg:flex-row lg:items-center lg:justify-between"
+              >
+                <div>
+                  <p className="font-medium text-white">{request.name || "未提供姓名"}</p>
+                  <p className="text-sm text-slate-400">{request.email || request.id}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    申請時間：
+                    {request.managerRequestedAt
+                      ? new Date(request.managerRequestedAt).toLocaleString()
+                      : "未記錄"}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleReview(request.id, "reject")}
+                    className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:border-red-500 hover:text-red-300"
+                  >
+                    拒絕
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleReview(request.id, "approve")}
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                  >
+                    核准為 Manager
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
         {STATUS_FILTERS.map((opt) => (
@@ -156,7 +226,7 @@ export function PlatformDashboardPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
-                      to={`/platform/tenants/${tenant.id}`}
+                      to={`/manager/tenants/${tenant.id}`}
                       className="text-violet-400 hover:text-violet-300"
                     >
                       查看詳情 →

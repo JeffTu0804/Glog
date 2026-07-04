@@ -1,7 +1,8 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { checkAuthStatus, registerHotel } from "../lib/auth";
+import { platformApi } from "../lib/platformApi";
 import { supabase } from "../lib/supabase";
 
 /**
@@ -109,7 +110,8 @@ export function CompleteRegistrationPage() {
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
-  const { refreshProfile } = useAuth();
+  const [searchParams] = useSearchParams();
+  const { refreshProfile, getToken } = useAuth();
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -140,6 +142,18 @@ export function AuthCallbackPage() {
           return;
         }
 
+        const target = searchParams.get("target") === "platform" ? "platform" : "hotel";
+        if (target === "platform") {
+          try {
+            await platformApi.getMe(token);
+            navigate("/manager", { replace: true });
+            return;
+          } catch {
+            setError("此 LINE 帳號尚未具有 Manager 權限");
+            return;
+          }
+        }
+
         const status = await checkAuthStatus(token);
 
         if (status.registered) {
@@ -152,13 +166,16 @@ export function AuthCallbackPage() {
         setError(err instanceof Error ? err.message : "登入處理失敗");
       }
     })();
-  }, [navigate, refreshProfile]);
+  }, [getToken, navigate, refreshProfile, searchParams]);
 
   if (error) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <p className="text-red-600">{error}</p>
-        <a href="/login" className="text-indigo-600 hover:underline">
+        <a
+          href={searchParams.get("target") === "platform" ? "/manager/login" : "/login"}
+          className="text-indigo-600 hover:underline"
+        >
           返回登入
         </a>
       </div>

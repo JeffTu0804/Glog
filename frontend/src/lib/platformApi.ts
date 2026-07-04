@@ -1,6 +1,8 @@
 import type {
+  ManagerAccessRequest,
   PlatformAdmin,
   PlatformCostLog,
+  PlatformInventoryItem,
   PlatformOverview,
   PlatformTenantUser,
   PlatformTicket,
@@ -41,7 +43,57 @@ async function request<T>(
   return data;
 }
 
+async function publicRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_BASE}/api/platform/v1${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+
+  const data = (await res.json()) as T & { error?: string };
+
+  if (!res.ok) {
+    throw new ApiError(data.error ?? "請求失敗");
+  }
+
+  return data;
+}
+
 export const platformApi = {
+  requestManagerAccessAfterSignup: (body: {
+    supabaseUserId: string;
+    email: string;
+    name?: string;
+  }) =>
+    publicRequest<{ status: string; message: string }>("/access-requests/signup", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  getMyAccessRequest: (token: string) =>
+    request<{ request: ManagerAccessRequest | null }>("/access-requests/me", token),
+
+  requestManagerAccess: (token: string, body?: { name?: string }) =>
+    request<{ status: string; message: string }>("/access-requests", token, {
+      method: "POST",
+      body: JSON.stringify(body ?? {}),
+    }),
+
+  getAccessRequests: (token: string) =>
+    request<{ requests: ManagerAccessRequest[] }>("/access-requests", token),
+
+  reviewAccessRequest: (
+    token: string,
+    id: string,
+    decision: "approve" | "reject",
+  ) =>
+    request<{ request: ManagerAccessRequest }>(`/access-requests/${id}`, token, {
+      method: "PATCH",
+      body: JSON.stringify({ decision }),
+    }),
+
   getMe: (token: string) =>
     request<{ admin: PlatformAdmin }>("/me", token),
 
@@ -80,6 +132,9 @@ export const platformApi = {
 
   getTenantUsers: (token: string, id: string) =>
     request<{ users: PlatformTenantUser[] }>(`/tenants/${id}/users`, token),
+
+  getTenantInventory: (token: string, id: string) =>
+    request<{ items: PlatformInventoryItem[] }>(`/tenants/${id}/inventory`, token),
 
   updateSubscription: (
     token: string,

@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { platformApi } from "../../lib/platformApi";
 import type {
   PlatformCostLog,
+  PlatformInventoryItem,
   PlatformTenantUser,
   PlatformTicket,
   SubscriptionPlan,
@@ -12,7 +13,73 @@ import type {
   Tenant,
 } from "../../types/platform";
 
-type Tab = "tickets" | "costs" | "users";
+type Tab = "tickets" | "costs" | "inventory" | "users";
+
+function buildCostTrend(costLogs: PlatformCostLog[]) {
+  const monthly = new Map<string, number>();
+
+  for (const log of costLogs) {
+    const date = new Date(log.recordedAt);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    monthly.set(key, (monthly.get(key) ?? 0) + Number(log.amount));
+  }
+
+  return Array.from(monthly.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([label, value]) => ({ label, value }));
+}
+
+function CostLineChart({ logs }: { logs: PlatformCostLog[] }) {
+  const points = buildCostTrend(logs);
+  if (points.length === 0) {
+    return (
+      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-500">
+        尚無足夠成本資料可繪製曲線圖
+      </div>
+    );
+  }
+
+  const width = 640;
+  const height = 220;
+  const padding = 24;
+  const max = Math.max(...points.map((p) => p.value), 1);
+  const stepX = points.length > 1 ? (width - padding * 2) / (points.length - 1) : 0;
+  const path = points
+    .map((point, index) => {
+      const x = padding + index * stepX;
+      const y = height - padding - (point.value / max) * (height - padding * 2);
+      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+    })
+    .join(" ");
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-medium text-white">最近 6 個月成本趨勢</h3>
+        <span className="text-xs text-slate-500">NT$</span>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible">
+        <path d={path} fill="none" stroke="#8b5cf6" strokeWidth="3" />
+        {points.map((point, index) => {
+          const x = padding + index * stepX;
+          const y = height - padding - (point.value / max) * (height - padding * 2);
+          return (
+            <g key={point.label}>
+              <circle cx={x} cy={y} r="4" fill="#c4b5fd" />
+              <text x={x} y={height - 4} textAnchor="middle" fontSize="11" fill="#94a3b8">
+                {point.label.slice(5)}
+              </text>
+              <text x={x} y={y - 10} textAnchor="middle" fontSize="11" fill="#e2e8f0">
+                {Math.round(point.value)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
 
 export function TenantDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +88,7 @@ export function TenantDetailPage() {
   const [tab, setTab] = useState<Tab>("tickets");
   const [tickets, setTickets] = useState<PlatformTicket[]>([]);
   const [costLogs, setCostLogs] = useState<PlatformCostLog[]>([]);
+  const [inventory, setInventory] = useState<PlatformInventoryItem[]>([]);
   const [users, setUsers] = useState<PlatformTenantUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -35,13 +103,15 @@ export function TenantDetailPage() {
       const { tenant: data } = await platformApi.getTenant(token, id);
       setTenant(data);
 
-      const [ticketsRes, costsRes, usersRes] = await Promise.all([
+      const [ticketsRes, costsRes, inventoryRes, usersRes] = await Promise.all([
         platformApi.getTenantTickets(token, id),
         platformApi.getTenantCostLogs(token, id),
+        platformApi.getTenantInventory(token, id),
         platformApi.getTenantUsers(token, id),
       ]);
       setTickets(ticketsRes.tickets);
       setCostLogs(costsRes.costLogs);
+      setInventory(inventoryRes.items);
       setUsers(usersRes.users);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入失敗");
@@ -78,7 +148,7 @@ export function TenantDetailPage() {
     return (
       <div>
         <p className="text-red-400">{error ?? "找不到租戶"}</p>
-        <Link to="/platform" className="mt-4 inline-block text-violet-400">
+        <Link to="/manager" className="mt-4 inline-block text-violet-400">
           返回總覽
         </Link>
       </div>
@@ -88,12 +158,13 @@ export function TenantDetailPage() {
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "tickets", label: "工單歷史", count: tickets.length },
     { key: "costs", label: "成本紀錄", count: costLogs.length },
+    { key: "inventory", label: "庫存", count: inventory.length },
     { key: "users", label: "員工", count: users.length },
   ];
 
   return (
     <div>
-      <Link to="/platform" className="text-sm text-violet-400 hover:underline">
+      <Link to="/manager" className="text-sm text-violet-400 hover:underline">
         ← 返回租戶總覽
       </Link>
 
@@ -212,7 +283,8 @@ export function TenantDetailPage() {
         )}
 
         {tab === "costs" && (
-          <div className="space-y-2">
+          <div className="space-y-4">
+            <CostLineChart logs={costLogs} />
             {costLogs.length === 0 ? (
               <p className="text-slate-500">尚無成本紀錄</p>
             ) : (
@@ -238,6 +310,46 @@ export function TenantDetailPage() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        )}
+
+        {tab === "inventory" && (
+          <div className="space-y-3">
+            {inventory.length === 0 ? (
+              <p className="text-slate-500">尚無庫存資料</p>
+            ) : (
+              inventory.map((item) => {
+                const isLow = item.quantity <= item.reorderLevel;
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-slate-800 bg-slate-900/50 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-white">{item.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {item.category ?? "未分類"} · {item.sku ?? "無料號"}
+                        </p>
+                      </div>
+                      {isLow && (
+                        <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs text-red-300">
+                          低庫存
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className="text-slate-300">
+                        庫存：{item.quantity} {item.unit}
+                      </span>
+                      <span className="text-slate-500">
+                        安全量：{item.reorderLevel} · NT$ {item.unitCost}/{item.unit}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         )}

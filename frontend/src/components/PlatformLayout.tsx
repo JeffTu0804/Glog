@@ -9,18 +9,18 @@ export function PlatformLayout() {
       <header className="border-b border-slate-800 bg-slate-900">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-6">
-            <NavLink to="/platform" className="text-xl font-bold text-white">
-              glog <span className="text-violet-400">Platform</span>
+            <NavLink to="/manager" className="text-xl font-bold text-white">
+              glog <span className="text-violet-400">Manager</span>
             </NavLink>
             <nav className="flex gap-4 text-sm">
               <NavLink
-                to="/platform"
+                to="/manager"
                 end
                 className={({ isActive }) =>
                   isActive ? "text-violet-400" : "text-slate-400 hover:text-white"
                 }
               >
-                租戶總覽
+                Manager 首頁
               </NavLink>
             </nav>
           </div>

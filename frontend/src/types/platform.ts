@@ -12,6 +12,16 @@ export interface PlatformAdmin {
   name: string;
 }
 
+export interface ManagerAccessRequest {
+  id: string;
+  email: string | null;
+  name: string | null;
+  role: string;
+  managerAccessStatus: string;
+  managerRequestedAt: string | null;
+  managerReviewedAt?: string | null;
+}
+
 export interface TenantStats {
   userCount: number;
   assetCount: number;
@@ -64,6 +74,17 @@ export interface PlatformCostLog {
     title: string;
     asset: { code: string; name: string };
   } | null;
+}
+
+export interface PlatformInventoryItem {
+  id: string;
+  name: string;
+  sku: string | null;
+  category: string | null;
+  quantity: number;
+  unit: string;
+  unitCost: string;
+  reorderLevel: number;
 }
 
 export interface PlatformTenantUser {
