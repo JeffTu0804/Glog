@@ -1,6 +1,13 @@
 import { Department, ReminderStatus, TicketPriority, TicketStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
-import { notifyTicketCreated, notifyTicketEscalated } from "./lineMessagingService.js";
+import {
+  notifyTicketCreated,
+  notifyTicketEscalated,
+} from "./lineMessagingService.js";
+import {
+  DEPARTMENT_ACCEPT_REMINDER_TITLE,
+  scheduleDepartmentAcceptReminder,
+} from "./departmentAcceptAlertService.js";
 
 const ESCALATION_MINUTES = Number(process.env.TICKET_ESCALATION_MINUTES ?? 15);
 
@@ -22,6 +29,7 @@ interface TicketNotifyContext {
   triggeredByName: string;
   autoDispatched: boolean;
   assigneeName?: string | null;
+  departmentOnly?: boolean;
 }
 
 /** 新工單建立後：LINE 推播工程部 + 排程逾時升級 */
@@ -39,9 +47,20 @@ export async function handleMaintenanceTicketCreated(ctx: TicketNotifyContext): 
     assigneeName: ctx.assigneeName,
   });
 
-  if (!ctx.autoDispatched) {
-    await scheduleTicketEscalationReminder(ctx.tenantId, ctx.ticket);
+  if (ctx.autoDispatched) return;
+
+  if (ctx.departmentOnly) {
+    await scheduleDepartmentAcceptReminder({
+      tenantId: ctx.tenantId,
+      department: Department.ENGINEERING,
+      maintenanceTicketId: ctx.ticket.id,
+      title: ctx.ticket.title,
+      message: `${ctx.ticket.asset.code} 號房「${ctx.ticket.title}」尚無人接單`,
+    });
+    return;
   }
+
+  await scheduleTicketEscalationReminder(ctx.tenantId, ctx.ticket);
 }
 
 async function scheduleTicketEscalationReminder(
@@ -84,6 +103,7 @@ export async function processDueTicketEscalations(): Promise<number> {
     where: {
       status: ReminderStatus.SCHEDULED,
       maintenanceTicketId: { not: null },
+      title: { not: { startsWith: DEPARTMENT_ACCEPT_REMINDER_TITLE } },
       remindAt: { lte: now },
     },
     include: {

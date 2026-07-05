@@ -41,6 +41,20 @@ enum UserStatus {
   BUSY  // 忙碌：已有進行中工單，暫不派單
 }
 
+/// 帳號啟用狀態（Manager 後台管理）
+enum UserAccountStatus {
+  ACTIVE    // 啟用
+  DISABLED  // 停用
+  SUSPENDED // 暫時停用
+}
+
+/// 職級（Manager 後台管理）
+enum UserPositionLevel {
+  STAFF      // 員工
+  SUPERVISOR // 主管
+  MANAGER    // 經理
+}
+
 /// 資產類型：區分客房與各類硬體設施
 enum AssetType {
   ROOM       // 客房
@@ -114,6 +128,12 @@ enum ShiftType {
 enum ShiftLogbookStatus {
   OPEN       // 進行中，可新增備註
   PUBLISHED  // 已交班，AI 摘要已產生
+}
+
+/// 交班重點／待追蹤事項類型
+enum HandoverItemType {
+  HIGHLIGHT  // 重點
+  OPEN_ITEM  // 待追蹤
 }
 
 /// 跨部門服務請求類型
@@ -193,6 +213,7 @@ model Tenant {
   costLogs           CostLog[]
   shiftLogbooks      ShiftLogbook[]
   shiftLogEntries    ShiftLogEntry[]
+  shiftHandoverAcks  ShiftHandoverAck[]
   serviceRequests    ServiceRequest[]
   reminders          Reminder[]
   ticketAttachments  TicketAttachment[]
@@ -206,8 +227,10 @@ model User {
   supabaseUserId String     @unique /// 對應 Supabase Auth 的 UUID，全系統唯一
   email          String     /// 員工電子郵件
   name           String     /// 員工顯示名稱
-  role           UserRole   /// 角色權限
-  status         UserStatus @default(IDLE) /// 即時狀態（閒置/忙碌），供派單演算法使用
+  role           UserRole           /// 角色權限（部門與功能存取）
+  status         UserStatus         @default(IDLE) /// 即時狀態（閒置/忙碌），供派單演算法使用
+  accountStatus  UserAccountStatus  @default(ACTIVE) /// 帳號啟用狀態
+  positionLevel  UserPositionLevel  @default(STAFF) /// 職級
   skills         String[]   /// 專業標籤（如 "plumbing", "electrical", "hvac"），供智能派單匹配
   lineUserId     String?    /// LINE 使用者 ID（OAuth sub），供交班推播
   createdAt      DateTime   @default(now())
@@ -226,6 +249,7 @@ model User {
   serviceRequestsHandled ServiceRequest[] @relation("ServiceRequestHandledBy")
   ticketAttachments      TicketAttachment[] @relation("TicketAttachmentUploadedBy")
   guestRequestsHandled GuestRequest[]     @relation("GuestRequestHandledBy")
+  handoverAcks         ShiftHandoverAck[] @relation("HandoverAckCompletedBy")
 
   @@unique([tenantId, email]) /// 同一租戶內 email 不可重複
   @@index([tenantId])
@@ -376,6 +400,7 @@ model ShiftLogbook {
   createdBy   User            @relation("LogbookCreatedBy", fields: [createdById], references: [id])
   publishedBy User?           @relation("LogbookPublishedBy", fields: [publishedById], references: [id])
   entries     ShiftLogEntry[]
+  handoverAcks ShiftHandoverAck[]
 
   @@unique([tenantId, department, shiftType, shiftDate])
   @@index([tenantId, department, status])
@@ -399,6 +424,25 @@ model ShiftLogEntry {
   @@index([logbookId])
 }
 
+/// 接班確認：員工勾選上一班交班重點／待追蹤事項
+model ShiftHandoverAck {
+  id              String           @id @default(cuid())
+  tenantId        String
+  sourceLogbookId String
+  itemType        HandoverItemType
+  itemIndex       Int
+  completedById   String
+  completedAt     DateTime         @default(now())
+
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceLogbook ShiftLogbook @relation(fields: [sourceLogbookId], references: [id], onDelete: Cascade)
+  completedBy   User         @relation("HandoverAckCompletedBy", fields: [completedById], references: [id])
+
+  @@unique([sourceLogbookId, itemType, itemIndex])
+  @@index([tenantId])
+  @@index([sourceLogbookId])
+}
+
 /// 跨部門服務請求（如餐廳預約）
 model ServiceRequest {
   id               String               @id @default(cuid())
@@ -418,6 +462,9 @@ model ServiceRequest {
   responseNote     String?              /// 處理部門回覆
   confirmedAt      DateTime?
   rejectedAt       DateTime?
+  acceptedAt       DateTime?            /// 部門接單時間
+  completionPhotoUrl String?            /// 完工照片
+  source           String               @default("web") /// web | line
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 
@@ -485,7 +532,7 @@ model Reminder {
 /// 飯店租戶（住客 QR 模組，與 Tenant 一對一）
 model Hotel {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId          String   @unique
+  tenantId          String   @unique @map("tenant_id")
   name              String
   lineOfficialToken String?  @map("line_official_token")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

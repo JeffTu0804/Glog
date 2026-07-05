@@ -5,6 +5,98 @@ import { prisma } from "../lib/prisma.js";
 type DbClient = Prisma.TransactionClient | typeof prisma;
 
 /**
+ * 依 IDLE 狀態與 skills 匹配最佳房務人員。
+ */
+export async function findBestAvailableHousekeeper(
+  db: DbClient,
+  tenantId: string,
+) {
+  const staff = await db.user.findMany({
+    where: {
+      tenantId,
+      role: UserRole.HOUSEKEEPING,
+      status: UserStatus.IDLE,
+    },
+  });
+
+  return staff[0] ?? null;
+}
+
+/**
+ * 將工單指派給房務人員（結構對齊工程派單，供日後擴充相同閉環）。
+ */
+export async function assignHousekeeperInTransaction(
+  db: DbClient,
+  tenantId: string,
+  ticketId: string,
+  housekeeperId: string,
+  assetId: string,
+) {
+  const housekeeper = await db.user.findFirst({
+    where: { id: housekeeperId, tenantId, role: UserRole.HOUSEKEEPING },
+  });
+
+  if (!housekeeper) {
+    throw new AppError(404, "找不到房務人員");
+  }
+
+  if (housekeeper.status !== UserStatus.IDLE) {
+    throw new AppError(400, "房務人員目前忙碌中，無法派單");
+  }
+
+  const now = new Date();
+
+  await db.user.update({
+    where: { id: housekeeperId },
+    data: { status: UserStatus.BUSY },
+  });
+
+  await db.asset.update({
+    where: { id: assetId },
+    data: { status: AssetStatus.MAINTENANCE },
+  });
+
+  return db.maintenanceTicket.update({
+    where: { id: ticketId },
+    data: {
+      assignedToId: housekeeperId,
+      status: TicketStatus.ASSIGNED,
+      assignedAt: now,
+    },
+  });
+}
+
+/**
+ * 嘗試自動派單給房務；若無可用人員則僅標記資產維護中。
+ */
+export async function tryAutoDispatchHousekeeping(
+  db: DbClient,
+  tenantId: string,
+  ticketId: string,
+  assetId: string,
+) {
+  const housekeeper = await findBestAvailableHousekeeper(db, tenantId);
+
+  if (housekeeper) {
+    await assignHousekeeperInTransaction(
+      db,
+      tenantId,
+      ticketId,
+      housekeeper.id,
+      assetId,
+    );
+    return { dispatched: true as const, housekeeperId: housekeeper.id };
+  }
+
+  await db.asset.update({
+    where: { id: assetId },
+    data: { status: AssetStatus.MAINTENANCE },
+  });
+
+  return { dispatched: false as const, housekeeperId: null };
+}
+
+/**
  * 依 IDLE 狀態與 skills 匹配最佳工程師。
  * - 若指定 requiredSkills，工程師至少需匹配一項標籤
  * - 依匹配標籤數量降序排序，取最高分者

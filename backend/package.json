@@ -4,7 +4,8 @@
   "description": "Hotel Back-of-House ERP — 飯店後勤微型 SaaS",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "dev:clean": "lsof -ti :3000 | xargs kill -9 2>/dev/null; tsx watch --clear-screen=false src/index.ts",
     "dev:frontend": "npm run dev --prefix frontend",
     "build": "tsc",
     "build:frontend": "npm run build --prefix frontend",

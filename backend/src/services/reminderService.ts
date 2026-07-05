@@ -20,6 +20,7 @@ const REMINDER_INCLUDE = {
       scheduledAt: true,
       status: true,
       responseNote: true,
+      targetDepartment: true,
     },
   },
   maintenanceTicket: {
@@ -62,6 +63,7 @@ type ReminderRow = {
     scheduledAt: Date;
     status: string;
     responseNote: string | null;
+    targetDepartment: string;
   } | null;
   maintenanceTicket: {
     id: string;

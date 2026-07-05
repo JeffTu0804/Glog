@@ -11,6 +11,7 @@ import {
   parseTicketStatus,
   updateTicketStatus,
 } from "../services/maintenanceTicketService.js";
+import { acceptEngineeringTicketById } from "../services/departmentTaskService.js";
 import {
   closeTicket,
   type CloseTicketInput,
@@ -134,6 +135,30 @@ maintenanceTicketsRouter.get(
     );
 
     res.json({ ticket });
+  }),
+);
+
+/**
+ * POST /api/v1/maintenance-tickets/:id/accept
+ * 工程師接單（部門接單流程）
+ */
+maintenanceTicketsRouter.post(
+  "/:id/accept",
+  requireRole(UserRole.ENGINEER, UserRole.ADMIN),
+  asyncHandler(async (req, res) => {
+    await acceptEngineeringTicketById(
+      req.user!.tenantId,
+      req.user!.id,
+      req.user!.role,
+      getParamId(req.params, "工單 ID"),
+    );
+
+    const ticket = await findTicketForTenant(
+      req.user!.tenantId,
+      getParamId(req.params, "工單 ID"),
+    );
+
+    res.json({ ticket, message: "已接單，請完成後上傳照片結案" });
   }),
 );
 

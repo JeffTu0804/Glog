@@ -1,14 +1,42 @@
 import {
   SubscriptionPlan,
   SubscriptionStatus,
+  UserAccountStatus,
+  UserPositionLevel,
+  UserRole,
   type Prisma,
 } from "@prisma/client";
 import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
+import { roleToDepartment } from "../utils/department.js";
 import { parseEnumValue } from "../utils/validators.js";
 
 const VALID_PLANS = Object.values(SubscriptionPlan);
 const VALID_STATUSES = Object.values(SubscriptionStatus);
+
+const tenantBriefSelect = { id: true, name: true, slug: true } as const;
+
+const platformUserSelect = {
+  id: true,
+  email: true,
+  name: true,
+  role: true,
+  status: true,
+  accountStatus: true,
+  positionLevel: true,
+  createdAt: true,
+  tenant: { select: tenantBriefSelect },
+} satisfies Prisma.UserSelect;
+
+function serializePlatformUser(
+  user: Prisma.UserGetPayload<{ select: typeof platformUserSelect }>,
+) {
+  return {
+    ...user,
+    department: roleToDepartment(user.role),
+    createdAt: user.createdAt.toISOString(),
+  };
+}
 
 export interface TenantListQuery {
   status?: SubscriptionStatus;
@@ -182,19 +210,13 @@ export async function getTenantCostLogs(tenantId: string) {
 export async function getTenantUsers(tenantId: string) {
   await findTenantOrThrow(tenantId);
 
-  return prisma.user.findMany({
+  const users = await prisma.user.findMany({
     where: { tenantId },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      status: true,
-      skills: true,
-      createdAt: true,
-    },
+    select: platformUserSelect,
     orderBy: { name: "asc" },
   });
+
+  return users.map(serializePlatformUser);
 }
 
 export async function getTenantAssets(tenantId: string) {
@@ -214,8 +236,6 @@ export async function getTenantInventory(tenantId: string) {
     orderBy: [{ quantity: "asc" }, { name: "asc" }],
   });
 }
-
-const tenantBriefSelect = { id: true, name: true, slug: true } as const;
 
 export interface PlatformListQuery {
   tenantId?: string;
@@ -265,19 +285,97 @@ export async function listPlatformUsers(query: { tenantId?: string }) {
   const where: Prisma.UserWhereInput = {};
   if (query.tenantId) where.tenantId = query.tenantId;
 
-  return prisma.user.findMany({
+  const users = await prisma.user.findMany({
     where,
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      role: true,
-      status: true,
-      skills: true,
-      createdAt: true,
-      tenant: { select: tenantBriefSelect },
-    },
+    select: platformUserSelect,
     orderBy: [{ tenant: { name: "asc" } }, { name: "asc" }],
     take: 200,
   });
+
+  return users.map(serializePlatformUser);
+}
+
+export interface UpdatePlatformUserInput {
+  tenantId?: string;
+  role?: UserRole;
+  name?: string;
+  accountStatus?: UserAccountStatus;
+  positionLevel?: UserPositionLevel;
+}
+
+export function parseUpdatePlatformUserBody(body: Record<string, unknown>) {
+  const input: UpdatePlatformUserInput = {};
+
+  if (body.tenantId !== undefined) {
+    if (typeof body.tenantId !== "string" || !body.tenantId.trim()) {
+      throw new AppError(400, "tenantId 格式無效");
+    }
+    input.tenantId = body.tenantId.trim();
+  }
+
+  if (body.role !== undefined) {
+    input.role = parseEnumValue(body.role, Object.values(UserRole), "role");
+  }
+
+  if (body.name !== undefined) {
+    if (typeof body.name !== "string" || !body.name.trim()) {
+      throw new AppError(400, "姓名不可為空");
+    }
+    input.name = body.name.trim();
+  }
+
+  if (body.accountStatus !== undefined) {
+    input.accountStatus = parseEnumValue(
+      body.accountStatus,
+      Object.values(UserAccountStatus),
+      "accountStatus",
+    );
+  }
+
+  if (body.positionLevel !== undefined) {
+    input.positionLevel = parseEnumValue(
+      body.positionLevel,
+      Object.values(UserPositionLevel),
+      "positionLevel",
+    );
+  }
+
+  if (Object.keys(input).length === 0) {
+    throw new AppError(400, "請提供至少一個要更新的欄位");
+  }
+
+  return input;
+}
+
+export async function updatePlatformUser(userId: string, input: UpdatePlatformUserInput) {
+  const existing = await prisma.user.findUnique({ where: { id: userId } });
+  if (!existing) {
+    throw new AppError(404, "找不到員工");
+  }
+
+  if (input.tenantId && input.tenantId !== existing.tenantId) {
+    await findTenantOrThrow(input.tenantId);
+    const conflict = await prisma.user.findUnique({
+      where: {
+        tenantId_email: { tenantId: input.tenantId, email: existing.email },
+      },
+    });
+    if (conflict && conflict.id !== userId) {
+      throw new AppError(400, "目標飯店已有相同帳號的員工");
+    }
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.role !== undefined ? { role: input.role } : {}),
+      ...(input.accountStatus !== undefined ? { accountStatus: input.accountStatus } : {}),
+      ...(input.positionLevel !== undefined ? { positionLevel: input.positionLevel } : {}),
+      ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
+    },
+    select: platformUserSelect,
+  });
+
+  return serializePlatformUser(updated);
 }

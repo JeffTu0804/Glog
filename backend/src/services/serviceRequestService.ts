@@ -13,6 +13,10 @@ import { withTenantScope } from "../utils/tenantScope.js";
 import { parseEnumValue } from "../utils/validators.js";
 import { createImmediateDepartmentReminder } from "./reminderService.js";
 import { notifyServiceRequestCreated } from "./lineMessagingService.js";
+import {
+  notifyNewDepartmentTask,
+  scheduleDepartmentAcceptReminder,
+} from "./departmentAcceptAlertService.js";
 
 const REQUEST_INCLUDE = {
   createdBy: { select: { id: true, name: true, role: true } },
@@ -67,6 +71,9 @@ function serializeRequest(
     responseNote: req.responseNote,
     confirmedAt: req.confirmedAt?.toISOString() ?? null,
     rejectedAt: req.rejectedAt?.toISOString() ?? null,
+    acceptedAt: req.acceptedAt?.toISOString() ?? null,
+    completionPhotoUrl: req.completionPhotoUrl ?? null,
+    source: req.source,
     createdAt: req.createdAt.toISOString(),
     updatedAt: req.updatedAt.toISOString(),
     createdBy: req.createdBy,
@@ -103,31 +110,63 @@ export async function createServiceRequest(
         createdById: userId,
         scheduledAt: input.scheduledAt,
         reminderAt: input.reminderAt,
+        source: "web",
       },
       include: REQUEST_INCLUDE,
     });
 
-    const guestLabel = `${created.guestRoom} 號房 ${created.guestName}`;
-    const timeLabel = formatTaipeiTime(created.scheduledAt);
-    await createImmediateDepartmentReminder(tx, {
-      tenantId,
-      serviceRequestId: created.id,
-      title: `新預約請求：${created.title}`,
-      message: `${guestLabel}，預約 ${timeLabel}。請儘快確認可否受理。`,
-      notifyDepartment: Department.FOOD_BEVERAGE,
-    });
+    if (created.type === ServiceRequestType.RESTAURANT_RESERVATION) {
+      const guestLabel = `${created.guestRoom} 號房 ${created.guestName}`;
+      const timeLabel = formatTaipeiTime(created.scheduledAt);
+      await createImmediateDepartmentReminder(tx, {
+        tenantId,
+        serviceRequestId: created.id,
+        title: `新預約請求：${created.title}`,
+        message: `${guestLabel}，預約 ${timeLabel}。請儘快確認可否受理。`,
+        notifyDepartment: Department.FOOD_BEVERAGE,
+      });
+    }
 
     return created;
   });
 
-  void notifyServiceRequestCreated({
-    tenantId,
-    title: request.title,
-    guestRoom: request.guestRoom,
-    guestName: request.guestName,
-    targetDepartment: request.targetDepartment,
-    scheduledLabel: formatTaipeiTime(request.scheduledAt),
-  });
+  if (
+    request.type === ServiceRequestType.GENERAL &&
+    request.targetDepartment === Department.HOUSEKEEPING
+  ) {
+    const creator = await prisma.user.findFirst({
+      where: { id: userId, tenantId },
+      select: { name: true },
+    });
+
+    await notifyNewDepartmentTask({
+      tenantId,
+      department: Department.HOUSEKEEPING,
+      roomNumber: request.guestRoom,
+      title: request.title,
+      description: request.description ?? "",
+      triggeredByName: creator?.name ?? "前台",
+    });
+
+    await scheduleDepartmentAcceptReminder({
+      tenantId,
+      department: Department.HOUSEKEEPING,
+      serviceRequestId: request.id,
+      title: request.title,
+      message: `${request.guestRoom} 號房「${request.title}」尚無人接單`,
+    });
+  }
+
+  if (request.type === ServiceRequestType.RESTAURANT_RESERVATION) {
+    void notifyServiceRequestCreated({
+      tenantId,
+      title: request.title,
+      guestRoom: request.guestRoom,
+      guestName: request.guestName,
+      targetDepartment: request.targetDepartment,
+      scheduledLabel: formatTaipeiTime(request.scheduledAt),
+    });
+  }
 
   return serializeRequest(request);
 }
@@ -135,21 +174,32 @@ export async function createServiceRequest(
 export async function listServiceRequests(
   tenantId: string,
   role: UserRole,
-  view: "inbox" | "sent" | "all",
+  view: "inbox" | "sent" | "all" | "active",
   userId: string,
+  targetDepartment?: Department,
 ) {
   let where: Prisma.ServiceRequestWhereInput = withTenantScope(tenantId, {});
+
+  if (targetDepartment) {
+    where.targetDepartment = targetDepartment;
+  }
 
   if (view === "inbox") {
     const dept = roleToDepartment(role);
     where = {
       ...where,
-      targetDepartment: role === UserRole.ADMIN ? undefined : dept,
       status: ServiceRequestStatus.PENDING,
+      handledById: null,
+      ...(role === UserRole.ADMIN && !targetDepartment
+        ? {}
+        : { targetDepartment: targetDepartment ?? dept }),
     };
-    if (role === UserRole.ADMIN) {
-      where.status = ServiceRequestStatus.PENDING;
-    }
+  } else if (view === "active") {
+    where = {
+      ...where,
+      status: ServiceRequestStatus.CONFIRMED,
+      handledById: userId,
+    };
   } else if (view === "sent") {
     where = { ...where, createdById: userId };
   }
@@ -192,12 +242,9 @@ export async function confirmServiceRequest(
   userId: string,
   role: UserRole,
   id: string,
-  responseNote: string,
+  responseNote?: string,
 ) {
-  const note = responseNote.trim();
-  if (!note) {
-    throw new AppError(400, "請填寫確認回覆（將傳給前台與客人參考）");
-  }
+  const note = responseNote?.trim() ?? "";
 
   const existing = await prisma.serviceRequest.findFirst({
     where: withTenantScope(tenantId, { id }),
@@ -220,7 +267,7 @@ export async function confirmServiceRequest(
       where: { id },
       data: {
         status: ServiceRequestStatus.CONFIRMED,
-        responseNote: note,
+        responseNote: note || null,
         handledById: userId,
         confirmedAt: new Date(),
       },
@@ -229,12 +276,13 @@ export async function confirmServiceRequest(
 
     const guestLabel = `${req.guestRoom} 號房 ${req.guestName}`;
     const timeLabel = formatTaipeiTime(req.scheduledAt);
+    const confirmDetail = note ? ` ${note}` : "";
 
     await createImmediateDepartmentReminder(tx, {
       tenantId,
       serviceRequestId: req.id,
       title: `預約已確認：${req.title}`,
-      message: `請通知 ${guestLabel}：餐飲部已確認預約（${timeLabel}）。${note}`,
+      message: `請通知 ${guestLabel}：餐飲部已確認預約（${timeLabel}）。${confirmDetail}`,
       notifyDepartment: Department.FRONT_DESK,
     });
 
@@ -244,7 +292,7 @@ export async function confirmServiceRequest(
           tenantId,
           serviceRequestId: req.id,
           title: `通知客人：${req.title}`,
-          message: `請於 ${formatTaipeiTime(req.reminderAt)} 再次提醒 ${guestLabel}。餐飲部確認：${note}`,
+          message: `請於 ${formatTaipeiTime(req.reminderAt)} 再次提醒 ${guestLabel}。餐飲部確認${note ? `：${note}` : "。"}`,
           remindAt: req.reminderAt,
           notifyDepartment: Department.FRONT_DESK,
         },

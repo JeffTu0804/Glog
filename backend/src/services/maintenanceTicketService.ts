@@ -55,6 +55,13 @@ export interface CreateTicketInput {
   requiredSkills?: string[];
 }
 
+export interface CreateTicketOptions {
+  /** 指定工程師 ID 時略過自動派單演算法 */
+  assigneeUserId?: string;
+  /** 僅通知部門、不自動派單（LINE 部門接單流程） */
+  departmentOnly?: boolean;
+}
+
 export interface ListTicketsQuery {
   status?: TicketStatus;
   assignedToId?: string;
@@ -160,6 +167,7 @@ export async function createTicket(
   tenantId: string,
   triggeredById: string,
   input: CreateTicketInput,
+  options?: CreateTicketOptions,
 ): Promise<CreateTicketResult> {
   const asset = await assertAssetInTenant(tenantId, input.assetId);
   const requiredSkills = input.requiredSkills ?? [];
@@ -177,20 +185,40 @@ export async function createTicket(
       },
     });
 
-    const dispatch = await tryAutoDispatch(
-      tx,
-      tenantId,
-      ticket.id,
-      asset.id,
-      requiredSkills,
-    );
+    let autoDispatched = false;
+
+    if (options?.departmentOnly) {
+      await tx.asset.update({
+        where: { id: asset.id },
+        data: { status: AssetStatus.MAINTENANCE },
+      });
+    } else if (options?.assigneeUserId) {
+      await assertEngineerInTenant(tenantId, options.assigneeUserId);
+      await assignEngineerInTransaction(
+        tx,
+        tenantId,
+        ticket.id,
+        options.assigneeUserId,
+        asset.id,
+      );
+      autoDispatched = true;
+    } else {
+      const dispatch = await tryAutoDispatch(
+        tx,
+        tenantId,
+        ticket.id,
+        asset.id,
+        requiredSkills,
+      );
+      autoDispatched = dispatch.dispatched;
+    }
 
     const fullTicket = await tx.maintenanceTicket.findUniqueOrThrow({
       where: { id: ticket.id },
       include: TICKET_INCLUDE,
     });
 
-    return { ticket: fullTicket, autoDispatched: dispatch.dispatched };
+    return { ticket: fullTicket, autoDispatched };
   });
 
   const triggeredBy = await prisma.user.findUnique({
@@ -210,6 +238,7 @@ export async function createTicket(
     triggeredByName: triggeredBy?.name ?? "同仁",
     autoDispatched: result.autoDispatched,
     assigneeName: result.ticket.assignedTo?.name,
+    departmentOnly: options?.departmentOnly ?? false,
   });
 
   return result;

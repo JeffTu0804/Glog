@@ -89,7 +89,7 @@ async function pushLineMessage(lineUserId: string, text: string, tokenOverride?:
   }
 }
 
-async function pushToDepartmentStaff(
+export async function pushToDepartmentStaff(
   tenantId: string,
   department: Department,
   text: string,
@@ -157,14 +157,83 @@ export async function notifyTicketCreated(params: {
   }
 
   if (params.autoDispatched && params.assigneeName) {
-    lines.push(`✅ 已自動派給：${params.assigneeName}`);
+    lines.push(`✅ 已派給：${params.assigneeName}`);
   } else {
-    lines.push("", "請至 Glog「工程工單」接單或派工。");
+    lines.push("", "請回覆「接單」認領此工單。");
   }
 
   const message = lines.join("\n");
 
   await pushToDepartmentStaff(params.tenantId, Department.ENGINEERING, message);
+}
+
+/** 新房務清潔工單 — 推播房務部 */
+export async function notifyHousekeepingTaskCreated(params: {
+  tenantId: string;
+  ticket: {
+    id: string;
+    title: string;
+    description: string | null;
+    priority: TicketPriority;
+    asset: { code: string; name: string };
+  };
+  triggeredByName: string;
+  autoDispatched: boolean;
+  assigneeName?: string | null;
+}): Promise<void> {
+  const priorityLabel = PRIORITY_LABELS[params.ticket.priority];
+  const lines = [
+    "🧹 新房務清潔工單",
+    `📍 ${params.ticket.asset.code} · ${params.ticket.asset.name}`,
+    `📋 ${params.ticket.title}`,
+    `⚡ 優先級：${priorityLabel}`,
+    `👤 通報：${params.triggeredByName}`,
+  ];
+
+  if (params.ticket.description?.trim()) {
+    lines.push(`📝 ${params.ticket.description.trim().slice(0, 120)}`);
+  }
+
+  if (params.autoDispatched && params.assigneeName) {
+    lines.push(`✅ 已派給：${params.assigneeName}`);
+  } else {
+    lines.push("", "請回覆「接單」認領此任務。");
+  }
+
+  await pushToDepartmentStaff(
+    params.tenantId,
+    Department.HOUSEKEEPING,
+    lines.join("\n"),
+  );
+}
+
+/** 部門任務逾時未接單 — 再次推播該部門 */
+export async function notifyDepartmentAcceptOverdue(params: {
+  tenantId: string;
+  department: Department;
+  roomNumber: string;
+  title: string;
+  minutesOverdue: number;
+}): Promise<void> {
+  const deptLabel = DEPARTMENT_LABELS[params.department];
+  const message = [
+    "⏰ 任務逾時未接單",
+    `已超過 ${params.minutesOverdue} 分鐘無人接單`,
+    `📍 ${params.roomNumber} 號房`,
+    `📋 ${params.title}`,
+    `👥 ${deptLabel}請儘快回覆「接單」`,
+  ].join("\n");
+
+  await pushToDepartmentStaff(params.tenantId, params.department, message);
+}
+
+/** 回覆 LINE 使用者（Webhook 確認訊息） */
+export async function replyToLineUser(lineUserId: string, text: string): Promise<void> {
+  try {
+    await pushLineMessage(lineUserId, text);
+  } catch (err) {
+    console.error("[LINE] 回覆使用者失敗", lineUserId, err);
+  }
 }
 
 /** 工單逾時未接單 — 升級通知管理層 */

@@ -14,6 +14,8 @@ import {
   listTenants,
   parseSubscriptionPlan,
   parseSubscriptionStatus,
+  parseUpdatePlatformUserBody,
+  updatePlatformUser,
   updateTenantSubscription,
 } from "../../services/platformService.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
@@ -214,5 +216,18 @@ platformTenantsRouter.get(
       typeof req.query.tenantId === "string" ? req.query.tenantId : undefined;
     const users = await listPlatformUsers({ tenantId });
     res.json({ users });
+  }),
+);
+
+/**
+ * PATCH /api/platform/v1/users/:id
+ * 更新員工（飯店、角色、姓名、狀態）
+ */
+platformTenantsRouter.patch(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    const input = parseUpdatePlatformUserBody(req.body as Record<string, unknown>);
+    const user = await updatePlatformUser(getParamId(req.params, "員工 ID"), input);
+    res.json({ user });
   }),
 );

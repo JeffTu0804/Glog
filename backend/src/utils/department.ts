@@ -42,6 +42,11 @@ export function rolesForDepartment(department: Department): UserRole[] {
   }
 }
 
+/** 部門對應的預設角色（一對一） */
+export function departmentToRole(department: Department): UserRole {
+  return rolesForDepartment(department)[0]!;
+}
+
 export function canAccessDepartment(
   role: UserRole,
   department: Department,
