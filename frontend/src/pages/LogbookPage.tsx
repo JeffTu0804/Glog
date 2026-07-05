@@ -21,6 +21,7 @@ export function LogbookPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,10 +66,14 @@ export function LogbookPage() {
     if (!data?.logbook || !note.trim()) return;
     setSubmitting(true);
     setError("");
+    setSuccess("");
     try {
       const token = await getToken();
-      await api.addLogbookEntry(token, data.logbook.id, note.trim());
+      const result = await api.addLogbookEntry(token, data.logbook.id, note.trim());
       setNote("");
+      if (result.ticketAlert) {
+        setSuccess(result.ticketAlert.message);
+      }
       await load(department);
       setSelectedId(null);
     } catch (err) {
@@ -158,6 +163,9 @@ export function LogbookPage() {
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
+      {success && (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{success}</p>
+      )}
 
       {data && (
         <div className="rounded-xl bg-indigo-50 p-5 ring-1 ring-indigo-100">
@@ -234,7 +242,7 @@ export function LogbookPage() {
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   rows={4}
-                  placeholder="例：203 房客人反映馬桶異常，已建立工單"
+                  placeholder="例：302 房客人反應冷氣不冷（含房號+問題會自動開工單並 LINE 通知工程部）"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />
                 <button

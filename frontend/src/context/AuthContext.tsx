@@ -10,144 +10,154 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { api } from "../lib/api";
 import { platformApi } from "../lib/platformApi";
-import { supabase } from "../lib/supabase";
+import { getSupabaseClient, hotelSupabase, managerSupabase } from "../lib/supabase";
 import type { User } from "../types/api";
 import type { PlatformAdmin } from "../types/platform";
 
-export type LoginTarget = "hotel" | "platform";
+import type { LoginTarget } from "../types/auth";
+export type { LoginTarget } from "../types/auth";
 
 interface AuthContextValue {
-  session: Session | null;
+  hotelSession: Session | null;
+  managerSession: Session | null;
   profile: User | null;
   platformAdmin: PlatformAdmin | null;
   isPlatformAdmin: boolean;
   loading: boolean;
   login: (email: string, password: string, target: LoginTarget) => Promise<LoginTarget>;
-  logout: () => Promise<void>;
-  getToken: () => Promise<string>;
+  logout: (target: LoginTarget) => Promise<void>;
+  getToken: (target?: LoginTarget) => Promise<string>;
   refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function resolveIdentity(accessToken: string, target: LoginTarget) {
-  if (target === "platform") {
-    const { admin } = await platformApi.getMe(accessToken);
-    return { platformAdmin: admin, profile: null as User | null };
-  }
-
-  const { user } = await api.getMe(accessToken);
-  return { platformAdmin: null as PlatformAdmin | null, profile: user };
+function inferLoginTarget(pathname = window.location.pathname): LoginTarget {
+  return pathname.startsWith("/manager") ? "platform" : "hotel";
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [hotelSession, setHotelSession] = useState<Session | null>(null);
+  const [managerSession, setManagerSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [platformAdmin, setPlatformAdmin] = useState<PlatformAdmin | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const clearIdentity = useCallback(() => {
-    setProfile(null);
-    setPlatformAdmin(null);
+  const loadHotelIdentity = useCallback(async (accessToken: string) => {
+    try {
+      const { user } = await api.getMe(accessToken);
+      setProfile(user);
+    } catch {
+      setProfile(null);
+    }
   }, []);
 
-  const loadIdentity = useCallback(
-    async (accessToken: string, preferredTarget?: LoginTarget) => {
-      if (preferredTarget) {
-        try {
-          const identity = await resolveIdentity(accessToken, preferredTarget);
-          setProfile(identity.profile);
-          setPlatformAdmin(identity.platformAdmin);
-          return preferredTarget;
-        } catch (err) {
-          if (preferredTarget === "hotel") {
-            setProfile(null);
-            setPlatformAdmin(null);
-            return "hotel" as const;
-          }
-          throw err;
-        }
-      }
-
-      try {
-        const { admin } = await platformApi.getMe(accessToken);
-        setPlatformAdmin(admin);
-        setProfile(null);
-        return "platform" as const;
-      } catch {
-        try {
-          const { user } = await api.getMe(accessToken);
-          setProfile(user);
-          setPlatformAdmin(null);
-          return "hotel" as const;
-        } catch {
-          setProfile(null);
-          setPlatformAdmin(null);
-          return "hotel" as const;
-        }
-      }
-    },
-    [],
-  );
+  const loadManagerIdentity = useCallback(async (accessToken: string) => {
+    try {
+      const { admin } = await platformApi.getMe(accessToken);
+      setPlatformAdmin(admin);
+    } catch {
+      setPlatformAdmin(null);
+    }
+  }, []);
 
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) {
-        void loadIdentity(data.session.access_token).finally(() =>
-          setLoading(false),
-        );
+    let active = true;
+
+    async function init() {
+      const [hotelRes, managerRes] = await Promise.all([
+        hotelSupabase.auth.getSession(),
+        managerSupabase.auth.getSession(),
+      ]);
+
+      if (!active) return;
+
+      setHotelSession(hotelRes.data.session);
+      setManagerSession(managerRes.data.session);
+
+      await Promise.all([
+        hotelRes.data.session
+          ? loadHotelIdentity(hotelRes.data.session.access_token)
+          : Promise.resolve(setProfile(null)),
+        managerRes.data.session
+          ? loadManagerIdentity(managerRes.data.session.access_token)
+          : Promise.resolve(setPlatformAdmin(null)),
+      ]);
+
+      if (active) setLoading(false);
+    }
+
+    void init();
+
+    const { data: hotelSub } = hotelSupabase.auth.onAuthStateChange((_event, session) => {
+      setHotelSession(session);
+      if (session) {
+        void loadHotelIdentity(session.access_token);
       } else {
-        setLoading(false);
+        setProfile(null);
       }
     });
 
-    const { data: subscription } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
-        setSession(nextSession);
-        if (nextSession) {
-          void loadIdentity(nextSession.access_token);
-        } else {
-          clearIdentity();
-        }
-      },
-    );
+    const { data: managerSub } = managerSupabase.auth.onAuthStateChange((_event, session) => {
+      setManagerSession(session);
+      if (session) {
+        void loadManagerIdentity(session.access_token);
+      } else {
+        setPlatformAdmin(null);
+      }
+    });
 
-    return () => subscription.subscription.unsubscribe();
-  }, [loadIdentity, clearIdentity]);
+    return () => {
+      active = false;
+      hotelSub.subscription.unsubscribe();
+      managerSub.subscription.unsubscribe();
+    };
+  }, [loadHotelIdentity, loadManagerIdentity]);
 
   const login = useCallback(
     async (email: string, password: string, target: LoginTarget) => {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const client = getSupabaseClient(target);
+      const { data, error } = await client.auth.signInWithPassword({
         email,
         password,
       });
       if (error) throw error;
       if (!data.session) throw new Error("登入失敗");
-      return loadIdentity(data.session.access_token, target);
+
+      if (target === "platform") {
+        try {
+          await platformApi.getMe(data.session.access_token);
+        } catch (err) {
+          await client.auth.signOut();
+          throw err;
+        }
+      }
+
+      return target;
     },
-    [loadIdentity],
+    [],
   );
 
-  const logout = useCallback(async () => {
-    await supabase.auth.signOut();
-    clearIdentity();
-  }, [clearIdentity]);
+  const logout = useCallback(async (target: LoginTarget) => {
+    await getSupabaseClient(target).auth.signOut();
+  }, []);
 
-  const getToken = useCallback(async () => {
-    const { data } = await supabase.auth.getSession();
+  const getToken = useCallback(async (target?: LoginTarget) => {
+    const portal = target ?? inferLoginTarget();
+    const { data } = await getSupabaseClient(portal).auth.getSession();
     if (!data.session) throw new Error("未登入");
     return data.session.access_token;
   }, []);
 
   const refreshProfile = useCallback(async () => {
-    const token = await getToken();
-    await loadIdentity(token, platformAdmin ? "platform" : "hotel");
-  }, [getToken, loadIdentity, platformAdmin]);
+    const token = await getToken("hotel");
+    await loadHotelIdentity(token);
+  }, [getToken, loadHotelIdentity]);
 
   const value = useMemo(
     () => ({
-      session,
+      hotelSession,
+      managerSession,
       profile,
       platformAdmin,
       isPlatformAdmin: platformAdmin !== null,
@@ -158,7 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshProfile,
     }),
     [
-      session,
+      hotelSession,
+      managerSession,
       profile,
       platformAdmin,
       loading,

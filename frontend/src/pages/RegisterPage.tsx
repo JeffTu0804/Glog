@@ -3,11 +3,11 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { AuthFooterLink, OAuthButtons } from "../components/OAuthButtons";
 import { useAuth } from "../context/AuthContext";
 import { registerHotel } from "../lib/auth";
-import { supabase } from "../lib/supabase";
+import { hotelSupabase } from "../lib/supabase";
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { session, profile, loading, refreshProfile } = useAuth();
+  const { hotelSession, profile, loading, refreshProfile } = useAuth();
   const [hotelName, setHotelName] = useState("");
   const [slug, setSlug] = useState("");
   const [adminName, setAdminName] = useState("");
@@ -33,7 +33,7 @@ export function RegisterPage() {
     setSubmitting(true);
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await hotelSupabase.auth.signUp({
         email,
         password,
         options: {
@@ -109,7 +109,7 @@ export function RegisterPage() {
         <p className="mt-4 text-center text-xs text-slate-400">
           使用 LINE 註冊？請先點 LINE 登入，再填寫飯店資料
         </p>
-        {session && !profile && (
+        {hotelSession && !profile && (
           <Link
             to="/register/complete"
             className="mt-2 block text-center text-sm text-indigo-600 hover:underline"

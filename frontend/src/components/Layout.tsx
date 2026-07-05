@@ -15,9 +15,6 @@ const NAV_ITEMS: {
   { to: "/guest-requests", label: "住客請求" },
   { to: "/logbook", label: "交班日誌" },
   { to: "/assets", label: "地點" },
-  { to: "/inventory", label: "庫存" },
-  { to: "/costs", label: "成本" },
-  { to: "/users", label: "員工", adminOnly: true },
 ];
 
 export function Layout() {
@@ -62,7 +59,7 @@ export function Layout() {
               </div>
               <button
                 type="button"
-                onClick={() => void logout()}
+                onClick={() => void logout("hotel")}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
               >
                 登出

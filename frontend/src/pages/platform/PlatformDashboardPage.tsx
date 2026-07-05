@@ -18,7 +18,7 @@ const STATUS_FILTERS: { value: SubscriptionStatus | ""; label: string }[] = [
 ];
 
 export function PlatformDashboardPage() {
-  const { getToken } = useAuth();
+  const { getToken, platformAdmin } = useAuth();
   const [stats, setStats] = useState<PlatformOverview | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [accessRequests, setAccessRequests] = useState<ManagerAccessRequest[]>([]);
@@ -66,9 +66,35 @@ export function PlatformDashboardPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">glog Manager</h1>
-        <p className="mt-1 text-sm text-slate-400">管理所有租用 glog 的飯店客戶與平台營運設定</p>
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100">
+            <svg
+              className="h-5 w-5 text-violet-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+              />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">
+              {platformAdmin?.name ?? "Manager"}，歡迎回到 glog Manager。
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              管理所有租用 glog 的飯店客戶與平台營運設定
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-slate-400">
+          最後登入：{new Date().toLocaleString("zh-TW")}
+        </p>
       </div>
 
       {stats && (
@@ -81,22 +107,24 @@ export function PlatformDashboardPage() {
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-xl border border-slate-800 bg-slate-900 p-4"
+              className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm"
             >
-              <p className="text-xs text-slate-500">{item.label}</p>
-              <p className="mt-1 text-2xl font-bold text-white">{item.value}</p>
+              <p className="text-xs font-medium text-slate-500">{item.label}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{item.value}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <div className="mb-8 rounded-xl border border-slate-200 bg-slate-50/50 p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-white">Manager 權限申請</h2>
-            <p className="mt-1 text-sm text-slate-400">新申請者會先停留在待審核，核准後才能登入 Manager 後台。</p>
+            <h2 className="text-lg font-semibold text-slate-900">Manager 權限申請</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              新申請者會先停留在待審核，核准後才能登入 Manager 後台。
+            </p>
           </div>
-          <span className="rounded-full bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-300">
+          <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-medium text-violet-700">
             待審核 {accessRequests.length}
           </span>
         </div>
@@ -108,12 +136,12 @@ export function PlatformDashboardPage() {
             {accessRequests.map((request) => (
               <div
                 key={request.id}
-                className="flex flex-col gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-4 lg:flex-row lg:items-center lg:justify-between"
+                className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 lg:flex-row lg:items-center lg:justify-between"
               >
                 <div>
-                  <p className="font-medium text-white">{request.name || "未提供姓名"}</p>
-                  <p className="text-sm text-slate-400">{request.email || request.id}</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="font-medium text-slate-900">{request.name || "未提供姓名"}</p>
+                  <p className="text-sm text-slate-500">{request.email || request.id}</p>
+                  <p className="mt-1 text-xs text-slate-400">
                     申請時間：
                     {request.managerRequestedAt
                       ? new Date(request.managerRequestedAt).toLocaleString()
@@ -124,14 +152,14 @@ export function PlatformDashboardPage() {
                   <button
                     type="button"
                     onClick={() => void handleReview(request.id, "reject")}
-                    className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:border-red-500 hover:text-red-300"
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
                   >
                     拒絕
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleReview(request.id, "approve")}
-                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
                   >
                     核准為 Manager
                   </button>
@@ -148,10 +176,10 @@ export function PlatformDashboardPage() {
             key={opt.label}
             type="button"
             onClick={() => setFilter(opt.value)}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
+            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
               filter === opt.value
                 ? "bg-violet-600 text-white"
-                : "bg-slate-800 text-slate-400 hover:text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
             {opt.label}
@@ -164,29 +192,27 @@ export function PlatformDashboardPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="搜尋飯店名稱、slug、email…"
-          className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100"
         />
         <button
           type="button"
           onClick={() => void load()}
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
+          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700"
         >
           搜尋
         </button>
       </div>
 
       {error && (
-        <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">
-          {error}
-        </p>
+        <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
       {loading ? (
         <p className="text-slate-500">載入中…</p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-800">
+        <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-900 text-slate-400">
+            <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>
                 <th className="px-4 py-3 font-medium">飯店</th>
                 <th className="px-4 py-3 font-medium">方案</th>
@@ -197,12 +223,12 @@ export function PlatformDashboardPage() {
                 <th className="px-4 py-3 font-medium" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-900/50">
+            <tbody className="divide-y divide-slate-100 bg-white">
               {tenants.map((tenant) => (
-                <tr key={tenant.id} className="hover:bg-slate-800/50">
+                <tr key={tenant.id} className="transition hover:bg-slate-50">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-white">{tenant.name}</p>
-                    <p className="text-xs text-slate-500">{tenant.slug}</p>
+                    <p className="font-medium text-slate-900">{tenant.name}</p>
+                    <p className="text-xs text-slate-400">{tenant.slug}</p>
                   </td>
                   <td className="px-4 py-3">
                     <PlanBadge plan={tenant.plan} />
@@ -210,24 +236,24 @@ export function PlatformDashboardPage() {
                   <td className="px-4 py-3">
                     <SubscriptionBadge status={tenant.subscriptionStatus} />
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-slate-700">
                     {tenant.stats?.userCount ?? 0}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-slate-700">
                     {tenant.stats?.ticketCount ?? 0}
                     {(tenant.stats?.openTicketCount ?? 0) > 0 && (
-                      <span className="ml-1 text-amber-400">
+                      <span className="ml-1 text-amber-600">
                         ({tenant.stats?.openTicketCount} 進行中)
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-300">
+                  <td className="px-4 py-3 text-slate-700">
                     NT$ {tenant.stats?.totalCost ?? "0"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
                       to={`/manager/tenants/${tenant.id}`}
-                      className="text-violet-400 hover:text-violet-300"
+                      className="font-medium text-violet-600 transition hover:text-violet-700"
                     >
                       查看詳情 →
                     </Link>

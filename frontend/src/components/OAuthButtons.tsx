@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { signInWithLine } from "../lib/auth";
-import type { LoginTarget } from "../context/AuthContext";
+import type { LoginTarget } from "../types/auth";
 
 interface OAuthButtonsProps {
   onError: (message: string) => void;

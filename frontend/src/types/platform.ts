@@ -69,6 +69,7 @@ export interface PlatformCostLog {
   amount: string;
   category: string | null;
   recordedAt: string;
+  tenant?: TenantBrief;
   ticket: {
     id: string;
     title: string;
@@ -85,6 +86,7 @@ export interface PlatformInventoryItem {
   unit: string;
   unitCost: string;
   reorderLevel: number;
+  tenant?: TenantBrief;
 }
 
 export interface PlatformTenantUser {
@@ -95,4 +97,11 @@ export interface PlatformTenantUser {
   status: string;
   skills: string[];
   createdAt: string;
+  tenant?: TenantBrief;
+}
+
+export interface TenantBrief {
+  id: string;
+  name: string;
+  slug: string;
 }

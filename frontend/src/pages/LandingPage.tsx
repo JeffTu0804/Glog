@@ -2,7 +2,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export function LandingPage() {
-  const { session, profile, isPlatformAdmin, loading } = useAuth();
+  const { hotelSession, managerSession, profile, isPlatformAdmin, loading } = useAuth();
 
   if (loading) {
     return (
@@ -12,11 +12,11 @@ export function LandingPage() {
     );
   }
 
-  if (session && isPlatformAdmin && !profile) {
-    return <Navigate to="/manager" replace />;
-  }
-  if (session && profile) {
+  if (hotelSession && profile) {
     return <Navigate to="/dashboard" replace />;
+  }
+  if (managerSession && isPlatformAdmin) {
+    return <Navigate to="/manager" replace />;
   }
 
   return (

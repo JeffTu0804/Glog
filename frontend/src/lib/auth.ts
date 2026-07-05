@@ -41,12 +41,63 @@ export async function registerHotel(
   return data;
 }
 
+export type JoinableRole =
+  | "FRONT_DESK"
+  | "HOUSEKEEPING"
+  | "ENGINEER"
+  | "FOOD_BEVERAGE";
+
+export async function joinHotel(
+  token: string,
+  body: { slug: string; name: string; role: JoinableRole },
+) {
+  const res = await fetch(`${API_BASE}/api/v1/auth/join`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await parseApiResponse<{ error?: string }>(res);
+
+  if (!res.ok) {
+    throw new Error(data.error ?? "加入飯店失敗");
+  }
+
+  return data;
+}
+
+export async function lookupTenantBySlug(token: string, slug: string) {
+  const params = new URLSearchParams({ slug });
+  const res = await fetch(`${API_BASE}/api/v1/auth/tenants/lookup?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await parseApiResponse<{
+    found: boolean;
+    tenant?: { name: string; slug: string };
+    error?: string;
+  }>(res);
+
+  if (!res.ok) {
+    throw new Error(data.error ?? "查詢失敗");
+  }
+
+  return data;
+}
+
 export async function checkAuthStatus(token: string) {
   const res = await fetch(`${API_BASE}/api/v1/auth/status`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  const data = await parseApiResponse<{ registered: boolean; error?: string }>(res);
+  const data = await parseApiResponse<{
+    registered: boolean;
+    isLineUser?: boolean;
+    error?: string;
+  }>(res);
 
   if (!res.ok) {
     throw new Error(data.error ?? "驗證失敗");

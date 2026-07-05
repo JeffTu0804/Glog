@@ -14,16 +14,16 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: "bg-emerald-500/20 text-emerald-300",
-  TRIAL: "bg-blue-500/20 text-blue-300",
-  PAST_DUE: "bg-amber-500/20 text-amber-300",
-  SUSPENDED: "bg-red-500/20 text-red-300",
-  CANCELLED: "bg-slate-500/20 text-slate-400",
+  ACTIVE: "bg-emerald-100 text-emerald-700",
+  TRIAL: "bg-blue-100 text-blue-700",
+  PAST_DUE: "bg-amber-100 text-amber-700",
+  SUSPENDED: "bg-red-100 text-red-700",
+  CANCELLED: "bg-slate-100 text-slate-600",
 };
 
 export function PlanBadge({ plan }: { plan: string }) {
   return (
-    <span className="rounded-full bg-violet-500/20 px-2.5 py-0.5 text-xs font-medium text-violet-300">
+    <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-medium text-violet-700">
       {PLAN_LABELS[plan] ?? plan}
     </span>
   );
@@ -32,7 +32,7 @@ export function PlanBadge({ plan }: { plan: string }) {
 export function SubscriptionBadge({ status }: { status: string }) {
   return (
     <span
-      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[status] ?? "bg-slate-700 text-slate-300"}`}
+      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[status] ?? "bg-slate-100 text-slate-600"}`}
     >
       {STATUS_LABELS[status] ?? status}
     </span>

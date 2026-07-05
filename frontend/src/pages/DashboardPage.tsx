@@ -17,8 +17,6 @@ export function DashboardPage() {
   const [openCount, setOpenCount] = useState(0);
   const [staleCount, setStaleCount] = useState(0);
   const [totalTickets, setTotalTickets] = useState(0);
-  const [lowStockCount, setLowStockCount] = useState(0);
-  const [totalCost, setTotalCost] = useState("0");
   const [recentTickets, setRecentTickets] = useState<MaintenanceTicket[]>([]);
   const [staleTickets, setStaleTickets] = useState<MaintenanceTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,11 +25,7 @@ export function DashboardPage() {
     void (async () => {
       try {
         const token = await getToken();
-        const [ticketsRes, inventoryRes, costsRes] = await Promise.all([
-          api.getTickets(token),
-          api.getInventory(token, { lowStock: true }),
-          api.getCostLogs(token),
-        ]);
+        const ticketsRes = await api.getTickets(token);
 
         const tickets = ticketsRes.tickets;
         const active = tickets.filter((t) =>
@@ -44,13 +38,6 @@ export function DashboardPage() {
         setStaleCount(countStaleTickets(tickets));
         setStaleTickets(stale);
         setRecentTickets(tickets.slice(0, 5));
-        setLowStockCount(inventoryRes.items.length);
-
-        const costSum = costsRes.costLogs.reduce(
-          (sum, log) => sum + Number(log.amount),
-          0,
-        );
-        setTotalCost(costSum.toLocaleString());
       } finally {
         setLoading(false);
       }
@@ -111,7 +98,7 @@ export function DashboardPage() {
         </Link>
       )}
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2">
         {[
           {
             label: "進行中工單",
@@ -126,20 +113,6 @@ export function DashboardPage() {
             value: totalTickets,
             href: "/tickets",
             color: "text-indigo-600",
-            ring: "ring-1 ring-slate-200",
-          },
-          {
-            label: "低庫存耗材",
-            value: lowStockCount,
-            href: "/inventory",
-            color: "text-red-600",
-            ring: "ring-1 ring-slate-200",
-          },
-          {
-            label: "累計成本 (NT$)",
-            value: totalCost,
-            href: "/costs",
-            color: "text-emerald-600",
             ring: "ring-1 ring-slate-200",
           },
         ].map((card) => (

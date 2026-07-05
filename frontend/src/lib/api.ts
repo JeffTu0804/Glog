@@ -201,7 +201,16 @@ export const api = {
   },
 
   addLogbookEntry: (token: string, logbookId: string, content: string) =>
-    request<{ entry: ShiftLogbook["entries"][number] }>(
+    request<{
+      entry: ShiftLogbook["entries"][number];
+      ticketAlert?: {
+        ticketId: string;
+        ticketTitle: string;
+        assetCode: string;
+        autoDispatched: boolean;
+        message: string;
+      } | null;
+    }>(
       `/logbook/${logbookId}/entries`,
       token,
       { method: "POST", body: JSON.stringify({ content }) },

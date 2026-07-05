@@ -149,6 +149,31 @@ export const platformApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+
+  getInventory: (
+    token: string,
+    params?: { tenantId?: string; lowStock?: boolean },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.tenantId) search.set("tenantId", params.tenantId);
+    if (params?.lowStock) search.set("lowStock", "true");
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return request<{ items: PlatformInventoryItem[] }>(`/inventory${q}`, token);
+  },
+
+  getCostLogs: (token: string, params?: { tenantId?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.tenantId) search.set("tenantId", params.tenantId);
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return request<{ costLogs: PlatformCostLog[] }>(`/cost-logs${q}`, token);
+  },
+
+  getUsers: (token: string, params?: { tenantId?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.tenantId) search.set("tenantId", params.tenantId);
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return request<{ users: PlatformTenantUser[] }>(`/users${q}`, token);
+  },
 };
 
 export { ApiError as PlatformApiError };

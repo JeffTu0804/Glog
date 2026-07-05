@@ -346,11 +346,7 @@ export function TicketDetailPage() {
           <h2 className="font-medium text-slate-900">手動派單</h2>
           {engineers.length === 0 ? (
             <p className="mt-2 text-sm text-amber-700">
-              尚無工程師帳號，請先到
-              <Link to="/users" className="mx-1 text-indigo-600 underline">
-                員工管理
-              </Link>
-              新增工程師，才能進入「開始作業 → 現場回報」流程。
+              尚無工程師帳號，請邀請工程師用 LINE 登入並完成 onboarding（選擇工程師職位），才能進入「開始作業 → 現場回報」流程。
             </p>
           ) : (
           <div className="mt-3 flex flex-wrap gap-2">

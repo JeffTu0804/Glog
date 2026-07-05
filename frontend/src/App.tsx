@@ -3,9 +3,7 @@ import { Layout } from "./components/Layout";
 import { PlatformLayout } from "./components/PlatformLayout";
 import { useAuth } from "./context/AuthContext";
 import { AssetsPage } from "./pages/AssetsPage";
-import { CostLogsPage } from "./pages/CostLogsPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { InventoryPage } from "./pages/InventoryPage";
 import { LandingPage } from "./pages/LandingPage";
 import { AuthCallbackPage, CompleteRegistrationPage } from "./pages/AuthCallbackPage";
 import { LogbookPage } from "./pages/LogbookPage";
@@ -24,12 +22,14 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { ServiceRequestsPage } from "./pages/ServiceRequestsPage";
 import { TicketDetailPage } from "./pages/TicketDetailPage";
 import { TicketsPage } from "./pages/TicketsPage";
-import { UsersPage } from "./pages/UsersPage";
 import { PlatformDashboardPage } from "./pages/platform/PlatformDashboardPage";
+import { PlatformCostLogsPage } from "./pages/platform/PlatformCostLogsPage";
+import { PlatformInventoryPage } from "./pages/platform/PlatformInventoryPage";
+import { PlatformUsersPage } from "./pages/platform/PlatformUsersPage";
 import { TenantDetailPage } from "./pages/platform/TenantDetailPage";
 
 function HotelProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading, isPlatformAdmin } = useAuth();
+  const { hotelSession, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -39,15 +39,14 @@ function HotelProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!session) return <Navigate to="/login" replace />;
-  if (isPlatformAdmin && !profile) return <Navigate to="/manager" replace />;
+  if (!hotelSession) return <Navigate to="/login" replace />;
   if (!profile) return <Navigate to="/register/complete" replace />;
 
   return <>{children}</>;
 }
 
 function PlatformProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, isPlatformAdmin, profile, loading } = useAuth();
+  const { managerSession, isPlatformAdmin, loading } = useAuth();
 
   if (loading) {
     return (
@@ -57,10 +56,8 @@ function PlatformProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!session) return <Navigate to="/manager/login" replace />;
-  if (!isPlatformAdmin) {
-    return <Navigate to={profile ? "/dashboard" : "/manager/login"} replace />;
-  }
+  if (!managerSession) return <Navigate to="/manager/login" replace />;
+  if (!isPlatformAdmin) return <Navigate to="/manager/login" replace />;
 
   return <>{children}</>;
 }
@@ -103,21 +100,11 @@ export default function App() {
         <Route path="logbook" element={<LogbookPage />} />
         <Route path="tickets/:id" element={<TicketDetailPage />} />
         <Route path="assets" element={<AssetsPage />} />
-        <Route path="inventory" element={<InventoryPage />} />
-        <Route path="costs" element={<CostLogsPage />} />
         <Route
           path="qr-rooms"
           element={
             <AdminRoute>
               <QrRoomsPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="users"
-          element={
-            <AdminRoute>
-              <UsersPage />
             </AdminRoute>
           }
         />
@@ -132,6 +119,9 @@ export default function App() {
       >
         <Route path="platform/*" element={<Navigate to="/manager" replace />} />
         <Route path="manager" element={<PlatformDashboardPage />} />
+        <Route path="manager/inventory" element={<PlatformInventoryPage />} />
+        <Route path="manager/costs" element={<PlatformCostLogsPage />} />
+        <Route path="manager/users" element={<PlatformUsersPage />} />
         <Route path="manager/tenants/:id" element={<TenantDetailPage />} />
       </Route>
 

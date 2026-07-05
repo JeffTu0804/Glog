@@ -34,7 +34,7 @@ function CostLineChart({ logs }: { logs: PlatformCostLog[] }) {
   const points = buildCostTrend(logs);
   if (points.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm text-slate-500">
+      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-500">
         尚無足夠成本資料可繪製曲線圖
       </div>
     );
@@ -54,23 +54,23 @@ function CostLineChart({ logs }: { logs: PlatformCostLog[] }) {
     .join(" ");
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-medium text-white">最近 6 個月成本趨勢</h3>
+        <h3 className="text-sm font-medium text-slate-900">最近 6 個月成本趨勢</h3>
         <span className="text-xs text-slate-500">NT$</span>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible">
-        <path d={path} fill="none" stroke="#8b5cf6" strokeWidth="3" />
+        <path d={path} fill="none" stroke="#7c3aed" strokeWidth="3" />
         {points.map((point, index) => {
           const x = padding + index * stepX;
           const y = height - padding - (point.value / max) * (height - padding * 2);
           return (
             <g key={point.label}>
-              <circle cx={x} cy={y} r="4" fill="#c4b5fd" />
-              <text x={x} y={height - 4} textAnchor="middle" fontSize="11" fill="#94a3b8">
+              <circle cx={x} cy={y} r="4" fill="#a78bfa" />
+              <text x={x} y={height - 4} textAnchor="middle" fontSize="11" fill="#64748b">
                 {point.label.slice(5)}
               </text>
-              <text x={x} y={y - 10} textAnchor="middle" fontSize="11" fill="#e2e8f0">
+              <text x={x} y={y - 10} textAnchor="middle" fontSize="11" fill="#334155">
                 {Math.round(point.value)}
               </text>
             </g>
@@ -147,8 +147,8 @@ export function TenantDetailPage() {
   if (error || !tenant) {
     return (
       <div>
-        <p className="text-red-400">{error ?? "找不到租戶"}</p>
-        <Link to="/manager" className="mt-4 inline-block text-violet-400">
+        <p className="text-red-600">{error ?? "找不到租戶"}</p>
+        <Link to="/manager" className="mt-4 inline-block text-violet-600 hover:underline">
           返回總覽
         </Link>
       </div>
@@ -164,18 +164,18 @@ export function TenantDetailPage() {
 
   return (
     <div>
-      <Link to="/manager" className="text-sm text-violet-400 hover:underline">
+      <Link to="/manager" className="text-sm text-violet-600 hover:underline">
         ← 返回租戶總覽
       </Link>
 
-      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-6">
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/50 p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">{tenant.name}</h1>
-            <p className="mt-1 text-sm text-slate-400">
+            <h1 className="text-2xl font-bold text-slate-900">{tenant.name}</h1>
+            <p className="mt-1 text-sm text-slate-500">
               {tenant.slug} · {tenant.contactEmail ?? "無聯絡 email"}
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-400">
               加入時間 {new Date(tenant.createdAt).toLocaleDateString("zh-TW")}
             </p>
           </div>
@@ -193,9 +193,9 @@ export function TenantDetailPage() {
               { label: "工單", value: tenant.stats.ticketCount },
               { label: "累計成本", value: `NT$ ${tenant.stats.totalCost}` },
             ].map((s) => (
-              <div key={s.label} className="rounded-lg bg-slate-800/50 p-3">
+              <div key={s.label} className="rounded-lg border border-slate-200 bg-white p-3">
                 <p className="text-xs text-slate-500">{s.label}</p>
-                <p className="text-lg font-semibold text-white">{s.value}</p>
+                <p className="text-lg font-semibold text-slate-900">{s.value}</p>
               </div>
             ))}
           </div>
@@ -208,7 +208,7 @@ export function TenantDetailPage() {
             onChange={(e) =>
               void handleSubscriptionUpdate("plan", e.target.value)
             }
-            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100"
           >
             {Object.entries({ TRIAL: "試用", STARTER: "入門", PRO: "專業", ENTERPRISE: "企業" }).map(
               ([k, v]) => (
@@ -224,7 +224,7 @@ export function TenantDetailPage() {
             onChange={(e) =>
               void handleSubscriptionUpdate("subscriptionStatus", e.target.value)
             }
-            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100"
           >
             {Object.entries(STATUS_LABELS).map(([k, v]) => (
               <option key={k} value={k}>
@@ -235,16 +235,16 @@ export function TenantDetailPage() {
         </div>
       </div>
 
-      <div className="mt-6 flex gap-2 border-b border-slate-800">
+      <div className="mt-6 flex gap-2 border-b border-slate-200">
         {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium ${
+            className={`px-4 py-2 text-sm font-medium transition ${
               tab === t.key
-                ? "border-b-2 border-violet-500 text-violet-400"
-                : "text-slate-500 hover:text-white"
+                ? "border-b-2 border-violet-600 text-violet-600"
+                : "text-slate-500 hover:text-slate-900"
             }`}
           >
             {t.label} ({t.count})
@@ -261,16 +261,16 @@ export function TenantDetailPage() {
               tickets.map((t) => (
                 <div
                   key={t.id}
-                  className="rounded-lg border border-slate-800 bg-slate-900/50 p-4"
+                  className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
                 >
                   <div className="flex justify-between">
-                    <p className="font-medium text-white">{t.title}</p>
+                    <p className="font-medium text-slate-900">{t.title}</p>
                     <span className="text-xs text-slate-500">{t.status}</span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-400">
+                  <p className="mt-1 text-sm text-slate-500">
                     {t.asset.code} · {t.asset.name}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-400">
                     {t.assignedTo
                       ? `工程師：${t.assignedTo.name}`
                       : "未指派"}{" "}
@@ -291,10 +291,10 @@ export function TenantDetailPage() {
               costLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/50 p-4"
+                  className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
                 >
                   <div>
-                    <p className="font-medium text-white">{log.description}</p>
+                    <p className="font-medium text-slate-900">{log.description}</p>
                     <p className="text-xs text-slate-500">
                       {log.category} ·{" "}
                       {log.ticket
@@ -303,8 +303,8 @@ export function TenantDetailPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-emerald-400">NT$ {log.amount}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="font-medium text-emerald-600">NT$ {log.amount}</p>
+                    <p className="text-xs text-slate-400">
                       {new Date(log.recordedAt).toLocaleDateString("zh-TW")}
                     </p>
                   </div>
@@ -324,23 +324,23 @@ export function TenantDetailPage() {
                 return (
                   <div
                     key={item.id}
-                    className="rounded-lg border border-slate-800 bg-slate-900/50 p-4"
+                    className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="font-medium text-white">{item.name}</p>
+                        <p className="font-medium text-slate-900">{item.name}</p>
                         <p className="text-xs text-slate-500">
                           {item.category ?? "未分類"} · {item.sku ?? "無料號"}
                         </p>
                       </div>
                       {isLow && (
-                        <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs text-red-300">
+                        <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">
                           低庫存
                         </span>
                       )}
                     </div>
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-                      <span className="text-slate-300">
+                      <span className="text-slate-700">
                         庫存：{item.quantity} {item.unit}
                       </span>
                       <span className="text-slate-500">
@@ -355,26 +355,26 @@ export function TenantDetailPage() {
         )}
 
         {tab === "users" && (
-          <div className="overflow-hidden rounded-xl border border-slate-800">
+          <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-900 text-slate-400">
+              <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="px-4 py-3">姓名</th>
-                  <th className="px-4 py-3">角色</th>
-                  <th className="px-4 py-3">狀態</th>
-                  <th className="px-4 py-3">技能</th>
+                  <th className="px-4 py-3 font-medium">姓名</th>
+                  <th className="px-4 py-3 font-medium">角色</th>
+                  <th className="px-4 py-3 font-medium">狀態</th>
+                  <th className="px-4 py-3 font-medium">技能</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {users.map((u) => (
-                  <tr key={u.id}>
-                    <td className="px-4 py-3 text-white">
+                  <tr key={u.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 text-slate-900">
                       {u.name}
-                      <p className="text-xs text-slate-500">{u.email}</p>
+                      <p className="text-xs text-slate-400">{u.email}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-300">{u.role}</td>
-                    <td className="px-4 py-3 text-slate-300">{u.status}</td>
-                    <td className="px-4 py-3 text-slate-400">
+                    <td className="px-4 py-3 text-slate-700">{u.role}</td>
+                    <td className="px-4 py-3 text-slate-700">{u.status}</td>
+                    <td className="px-4 py-3 text-slate-500">
                       {u.skills.join(", ") || "—"}
                     </td>
                   </tr>
