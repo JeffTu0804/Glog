@@ -9,12 +9,28 @@ export const DEPARTMENT_LABELS: Record<Department, string> = {
 };
 
 export const REQUEST_STATUS_LABELS = {
+  PENDING: "待接單",
+  CONFIRMED: "進行中",
+  REJECTED: "已拒絕",
+  CANCELLED: "已取消",
+  COMPLETED: "已完成",
+} as const;
+
+export const RESTAURANT_STATUS_LABELS = {
   PENDING: "待處理",
   CONFIRMED: "已確認",
   REJECTED: "已拒絕",
   CANCELLED: "已取消",
   COMPLETED: "已完成",
 } as const;
+
+export function isRestaurantRequest(req: { type: string }) {
+  return req.type === "RESTAURANT_RESERVATION";
+}
+
+export function isDepartmentTask(req: { type: string }) {
+  return req.type === "GENERAL";
+}
 
 /** 將 datetime-local 值轉 ISO（視為台北時間輸入） */
 export function localDatetimeToIso(value: string): string {

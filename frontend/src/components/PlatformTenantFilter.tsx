@@ -38,7 +38,7 @@ export function PlatformTenantFilter({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100"
+      className="glog-select focus:border-violet-400 focus:ring-violet-100"
     >
       <option value="">全部飯店</option>
       {tenants.map((tenant) => (
@@ -50,10 +50,20 @@ export function PlatformTenantFilter({
   );
 }
 
-export function TenantLabel({ name, slug }: { name: string; slug: string }) {
+export function TenantLabel({
+  name,
+  slug,
+  link,
+}: {
+  name: string;
+  slug: string;
+  link?: boolean;
+}) {
   return (
     <div>
-      <p className="font-medium text-slate-900">{name}</p>
+      <p className={`font-medium ${link ? "text-violet-600 group-hover:text-violet-700" : "text-slate-900"}`}>
+        {name}
+      </p>
       <p className="text-xs text-slate-400">{slug}</p>
     </div>
   );

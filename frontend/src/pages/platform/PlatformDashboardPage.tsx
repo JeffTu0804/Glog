@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { PlanBadge, SubscriptionBadge } from "../../components/PlatformBadges";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { AlertBanner } from "../../components/ui/AlertBanner";
+import { FilterChip } from "../../components/ui/FilterChip";
 import { useAuth } from "../../context/AuthContext";
 import { platformApi } from "../../lib/platformApi";
 import type {
@@ -66,36 +69,18 @@ export function PlatformDashboardPage() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100">
-            <svg
-              className="h-5 w-5 text-violet-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-              />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">
-              {platformAdmin?.name ?? "Manager"}，歡迎回到 glog Manager。
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              管理所有租用 glog 的飯店客戶與平台營運設定
-            </p>
-          </div>
-        </div>
-        <p className="text-xs text-slate-400">
-          最後登入：{new Date().toLocaleString("zh-TW")}
-        </p>
-      </div>
+      <PageHeader
+        title={`${platformAdmin?.name ?? "Manager"}，歡迎回來`}
+        subtitle="管理所有租用 glog 的飯店客戶與平台營運設定"
+        accent="violet"
+        meta={
+          <p className="text-xs text-slate-400">
+            最後登入：{new Date().toLocaleString("zh-TW")}
+          </p>
+        }
+      />
+
+      {error && <AlertBanner>{error}</AlertBanner>}
 
       {stats && (
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -105,18 +90,17 @@ export function PlatformDashboardPage() {
             { label: "全平台工單", value: stats.totalTickets },
             { label: "進行中工單", value: stats.openTickets },
           ].map((item) => (
-            <div
-              key={item.label}
-              className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 shadow-sm"
-            >
-              <p className="text-xs font-medium text-slate-500">{item.label}</p>
-              <p className="mt-1 text-2xl font-bold text-slate-900">{item.value}</p>
+            <div key={item.label} className="glog-card p-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {item.label}
+              </p>
+              <p className="mt-2 text-3xl font-bold text-slate-900">{item.value}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="mb-8 rounded-xl border border-slate-200 bg-slate-50/50 p-5 shadow-sm">
+      <div className="glog-card mb-8 p-5">
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Manager 權限申請</h2>
@@ -172,18 +156,12 @@ export function PlatformDashboardPage() {
 
       <div className="mb-4 flex flex-wrap gap-2">
         {STATUS_FILTERS.map((opt) => (
-          <button
+          <FilterChip
             key={opt.label}
-            type="button"
+            label={opt.label}
+            active={filter === opt.value}
             onClick={() => setFilter(opt.value)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              filter === opt.value
-                ? "bg-violet-600 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            {opt.label}
-          </button>
+          />
         ))}
       </div>
 
@@ -192,20 +170,12 @@ export function PlatformDashboardPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="搜尋飯店名稱、slug、email…"
-          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100"
+          className="glog-input flex-1 focus:border-violet-400 focus:ring-violet-100"
         />
-        <button
-          type="button"
-          onClick={() => void load()}
-          className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700"
-        >
+        <button type="button" onClick={() => void load()} className="glog-btn-manager">
           搜尋
         </button>
       </div>
-
-      {error && (
-        <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
 
       {loading ? (
         <p className="text-slate-500">載入中…</p>

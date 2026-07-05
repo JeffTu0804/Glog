@@ -131,8 +131,8 @@ export function CreateTicketModal({ open, onClose, onCreated }: CreateTicketModa
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
-      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4 py-6 backdrop-blur-sm">
+      <div className="glog-card max-h-[92vh] w-full max-w-lg overflow-y-auto p-6">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-slate-900">建立工程維修單</h2>
           <p className="mt-1 text-sm text-slate-500">
@@ -274,7 +274,7 @@ export function CreateTicketModal({ open, onClose, onCreated }: CreateTicketModa
             <button
               type="submit"
               disabled={submitting || !assetId}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="glog-btn-primary disabled:opacity-50"
             >
               {submitting ? "派送中…" : "送至工程部"}
             </button>

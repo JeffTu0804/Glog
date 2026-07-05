@@ -5,6 +5,10 @@ import {
   TenantLabel,
   usePlatformTenants,
 } from "../../components/PlatformTenantFilter";
+import { AlertBanner } from "../../components/ui/AlertBanner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { FilterChip } from "../../components/ui/FilterChip";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { platformApi } from "../../lib/platformApi";
 import type { PlatformInventoryItem } from "../../types/platform";
@@ -39,39 +43,30 @@ export function PlatformInventoryPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">耗材庫存</h1>
-          <p className="mt-1 text-sm text-slate-500">跨飯店庫存總覽與低庫存監控</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <PlatformTenantFilter tenants={tenants} value={tenantId} onChange={setTenantId} />
-          <button
-            type="button"
-            onClick={() => setShowLowOnly(!showLowOnly)}
-            className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
-              showLowOnly
-                ? "bg-red-100 text-red-700"
-                : "border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            僅顯示低庫存
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="耗材庫存"
+        subtitle="跨飯店庫存總覽與低庫存監控"
+        accent="violet"
+        action={
+          <div className="flex flex-wrap gap-2">
+            <PlatformTenantFilter tenants={tenants} value={tenantId} onChange={setTenantId} />
+            <FilterChip
+              label="僅顯示低庫存"
+              active={showLowOnly}
+              onClick={() => setShowLowOnly(!showLowOnly)}
+            />
+          </div>
+        }
+      />
 
-      {error && (
-        <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
+      {error && <AlertBanner>{error}</AlertBanner>}
 
       {loading ? (
         <p className="text-slate-500">載入中…</p>
       ) : items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 py-12 text-center text-slate-500">
-          尚無庫存資料
-        </div>
+        <EmptyState message="尚無庫存資料" />
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+        <div className="glog-card overflow-hidden">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
               <tr>

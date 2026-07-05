@@ -1,5 +1,6 @@
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { getDefaultHomePath } from "../lib/homeRoute";
 
 export function LandingPage() {
   const { hotelSession, managerSession, profile, isPlatformAdmin, loading } = useAuth();
@@ -13,7 +14,7 @@ export function LandingPage() {
   }
 
   if (hotelSession && profile) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultHomePath(profile.role)} replace />;
   }
   if (managerSession && isPlatformAdmin) {
     return <Navigate to="/manager" replace />;

@@ -132,6 +132,14 @@ export function TicketDetailPage() {
     });
   }
 
+  async function handleAcceptTicket() {
+    if (!id) return;
+    await runAction(async () => {
+      const token = await getToken();
+      await api.acceptMaintenanceTicket(token, id);
+    });
+  }
+
   async function handleClose(e: FormEvent) {
     e.preventDefault();
     if (!id) return;
@@ -194,7 +202,7 @@ export function TicketDetailPage() {
     return (
       <div>
         <p className="text-red-600">{error ?? "找不到工單"}</p>
-        <Link to="/tickets" className="mt-4 inline-block text-sm text-indigo-600">
+        <Link to="/engineering" className="mt-4 inline-block text-sm text-indigo-600">
           返回列表
         </Link>
       </div>
@@ -214,8 +222,8 @@ export function TicketDetailPage() {
 
   return (
     <div>
-      <Link to="/tickets" className="text-sm text-indigo-600 hover:underline">
-        ← 返回工單列表
+      <Link to="/engineering" className="text-sm text-indigo-600 hover:underline">
+        ← 返回工程部
       </Link>
 
       {stale && (
@@ -337,6 +345,25 @@ export function TicketDetailPage() {
           {actionError}
         </p>
       )}
+
+      {profile?.role === "ENGINEER" &&
+        ticket.status === "OPEN" &&
+        !ticket.assignedTo && (
+          <div className="mt-6 rounded-xl bg-white p-5 ring-1 ring-amber-200">
+            <h2 className="font-medium text-slate-900">部門接單</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              此工單等待工程部接單，認領後請上傳照片完成回報。
+            </p>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void handleAcceptTicket()}
+              className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              接單
+            </button>
+          </div>
+        )}
 
       {profile?.role === "ADMIN" && ticket.status === "OPEN" && (
         <form

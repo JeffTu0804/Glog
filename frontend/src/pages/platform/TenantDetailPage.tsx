@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { PlanBadge, STATUS_LABELS, SubscriptionBadge } from "../../components/PlatformBadges";
+import {
+  PlatformEmployeeTable,
+  draftFromUser,
+  type EmployeeEditDraft,
+} from "../../components/PlatformEmployeeTable";
 import { useAuth } from "../../context/AuthContext";
 import { platformApi } from "../../lib/platformApi";
 import type {
@@ -93,6 +98,10 @@ export function TenantDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [userDraft, setUserDraft] = useState<EmployeeEditDraft | null>(null);
+  const [userSuccess, setUserSuccess] = useState("");
 
   async function loadTenant() {
     if (!id) return;
@@ -140,6 +149,31 @@ export function TenantDetailPage() {
       setError(err instanceof Error ? err.message : "更新失敗");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveUser(userId: string) {
+    if (!userDraft || !id) return;
+    setSavingUserId(userId);
+    setError("");
+    setUserSuccess("");
+    try {
+      const token = await getToken();
+      const { user } = await platformApi.updateUser(token, userId, {
+        tenantId: id,
+        role: userDraft.role,
+        name: userDraft.name,
+        accountStatus: userDraft.accountStatus,
+        positionLevel: userDraft.positionLevel,
+      });
+      setUsers((prev) => prev.map((u) => (u.id === userId ? user : u)));
+      setEditingUserId(null);
+      setUserDraft(null);
+      setUserSuccess("已儲存員工資料");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "儲存失敗");
+    } finally {
+      setSavingUserId(null);
     }
   }
 
@@ -355,32 +389,31 @@ export function TenantDetailPage() {
         )}
 
         {tab === "users" && (
-          <div className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="px-4 py-3 font-medium">姓名</th>
-                  <th className="px-4 py-3 font-medium">角色</th>
-                  <th className="px-4 py-3 font-medium">狀態</th>
-                  <th className="px-4 py-3 font-medium">技能</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
-                {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-slate-900">
-                      {u.name}
-                      <p className="text-xs text-slate-400">{u.email}</p>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{u.role}</td>
-                    <td className="px-4 py-3 text-slate-700">{u.status}</td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {u.skills.join(", ") || "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div>
+            {userSuccess && (
+              <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                {userSuccess}
+              </p>
+            )}
+            <PlatformEmployeeTable
+              users={users}
+              tenants={tenant ? [tenant] : []}
+              showHotel={false}
+              editingId={editingUserId}
+              savingId={savingUserId}
+              draft={userDraft}
+              onStartEdit={(user) => {
+                setEditingUserId(user.id);
+                setUserDraft(draftFromUser(user, id));
+                setUserSuccess("");
+              }}
+              onCancelEdit={() => {
+                setEditingUserId(null);
+                setUserDraft(null);
+              }}
+              onDraftChange={setUserDraft}
+              onSave={(userId) => void handleSaveUser(userId)}
+            />
           </div>
         )}
       </div>

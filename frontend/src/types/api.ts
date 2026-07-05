@@ -172,6 +172,9 @@ export interface ServiceRequest {
   responseNote: string | null;
   confirmedAt: string | null;
   rejectedAt: string | null;
+  acceptedAt: string | null;
+  completionPhotoUrl: string | null;
+  source: string;
   createdAt: string;
   updatedAt: string;
   createdBy: ServiceRequestUser;
@@ -203,6 +206,7 @@ export interface Reminder {
     scheduledAt: string;
     status: ServiceRequestStatus;
     responseNote: string | null;
+    targetDepartment: Department;
   } | null;
   maintenanceTicket: {
     id: string;
@@ -267,4 +271,30 @@ export interface LogbookCurrentResponse {
   };
   logbook: ShiftLogbook;
   previousHandover: ShiftLogbook | null;
+}
+
+export type HandoverItemType = "HIGHLIGHT" | "OPEN_ITEM";
+
+export interface HandoverAckItem {
+  itemType: HandoverItemType;
+  itemIndex: number;
+  completedAt: string;
+  completedBy: { id: string; name: string };
+}
+
+export interface HomeTodoItem {
+  id: string;
+  kind: "guest_request" | "service_request" | "maintenance_ticket" | "reminder";
+  title: string;
+  subtitle: string;
+  href: string;
+  createdAt: string;
+}
+
+export interface HomeResponse {
+  department: Department;
+  shift: { label: string; window: string };
+  todos: HomeTodoItem[];
+  previousHandover: ShiftLogbook | null;
+  handoverAcks: HandoverAckItem[];
 }

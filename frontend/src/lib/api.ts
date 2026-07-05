@@ -5,6 +5,9 @@ import type {
   Department,
   GuestRequestItem,
   GuestRoom,
+  HandoverAckItem,
+  HandoverItemType,
+  HomeResponse,
   InventoryItem,
   InventoryUsage,
   LogbookCurrentResponse,
@@ -228,11 +231,18 @@ export const api = {
       { method: "POST" },
     ),
 
-  getServiceRequests: (token: string, view: "inbox" | "sent" | "all" = "inbox") =>
-    request<{ requests: ServiceRequest[] }>(
-      `/service-requests?view=${view}`,
+  getServiceRequests: (
+    token: string,
+    view: "inbox" | "sent" | "all" | "active" = "inbox",
+    department?: string,
+  ) => {
+    const params = new URLSearchParams({ view });
+    if (department) params.set("department", department);
+    return request<{ requests: ServiceRequest[] }>(
+      `/service-requests?${params.toString()}`,
       token,
-    ),
+    );
+  },
 
   createServiceRequest: (
     token: string,
@@ -252,10 +262,10 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  confirmServiceRequest: (token: string, id: string, responseNote: string) =>
+  confirmServiceRequest: (token: string, id: string, responseNote?: string) =>
     request<{ request: ServiceRequest }>(`/service-requests/${id}/confirm`, token, {
       method: "POST",
-      body: JSON.stringify({ responseNote }),
+      body: JSON.stringify({ responseNote: responseNote ?? "" }),
     }),
 
   rejectServiceRequest: (token: string, id: string, responseNote: string) =>
@@ -263,6 +273,31 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ responseNote }),
     }),
+
+  acceptServiceRequest: (token: string, id: string) =>
+    request<{ request: ServiceRequest; message: string }>(
+      `/service-requests/${id}/accept`,
+      token,
+      { method: "POST" },
+    ),
+
+  completeServiceRequest: (
+    token: string,
+    id: string,
+    body: { note?: string; photo: { data: string; mimeType: string } },
+  ) =>
+    request<{ request: ServiceRequest; message: string }>(
+      `/service-requests/${id}/complete`,
+      token,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+
+  acceptMaintenanceTicket: (token: string, id: string) =>
+    request<{ ticket: MaintenanceTicket; message: string }>(
+      `/maintenance-tickets/${id}/accept`,
+      token,
+      { method: "POST" },
+    ),
 
   getActiveReminders: (token: string) =>
     request<{ reminders: Reminder[] }>("/reminders/active", token),
@@ -295,6 +330,22 @@ export const api = {
 
   getGuestRooms: (token: string) =>
     request<{ rooms: GuestRoom[] }>("/guest-requests/rooms", token),
+
+  getHome: (token: string) => request<HomeResponse>("/home", token),
+
+  toggleHandoverAck: (
+    token: string,
+    body: {
+      logbookId: string;
+      itemType: HandoverItemType;
+      itemIndex: number;
+      completed: boolean;
+    },
+  ) =>
+    request<{ handoverAcks: HandoverAckItem[] }>("/home/handover-ack", token, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   syncGuestRooms: (token: string) =>
     request<{ created: number; updated: number; rooms: GuestRoom[] }>(

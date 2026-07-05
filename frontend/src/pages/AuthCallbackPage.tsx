@@ -8,6 +8,7 @@ import {
   registerHotel,
   type JoinableRole,
 } from "../lib/auth";
+import { getDefaultHomePath } from "../lib/homeRoute";
 import { platformApi } from "../lib/platformApi";
 import { consumeAuthHashSession, getSupabaseClient, hotelSupabase } from "../lib/supabase";
 
@@ -123,7 +124,7 @@ export function CompleteRegistrationPage() {
   const selectedRole = ROLE_OPTIONS.find((r) => r.value === role);
 
   if (!loading && profile) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultHomePath(profile.role)} replace />;
   }
 
   if (!loading && !hotelSession) {
@@ -146,7 +147,7 @@ export function CompleteRegistrationPage() {
 
       await joinHotel(token, { slug, name, role });
       await refreshProfile();
-      navigate("/dashboard");
+      navigate(getDefaultHomePath(role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "加入失敗");
     } finally {
@@ -166,7 +167,7 @@ export function CompleteRegistrationPage() {
 
       await registerHotel(token, { hotelName, slug, adminName });
       await refreshProfile();
-      navigate("/dashboard");
+      navigate("/guest-requests");
     } catch (err) {
       setError(err instanceof Error ? err.message : "註冊失敗");
     } finally {
@@ -402,7 +403,7 @@ export function AuthCallbackPage() {
 
         if (status.registered) {
           await refreshProfile();
-          navigate("/dashboard", { replace: true });
+          navigate("/", { replace: true });
         } else {
           navigate("/register/complete", { replace: true });
         }

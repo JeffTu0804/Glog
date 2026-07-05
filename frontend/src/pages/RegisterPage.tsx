@@ -2,6 +2,7 @@ import { type FormEvent, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { AuthFooterLink, OAuthButtons } from "../components/OAuthButtons";
 import { useAuth } from "../context/AuthContext";
+import { getDefaultHomePath } from "../lib/homeRoute";
 import { registerHotel } from "../lib/auth";
 import { hotelSupabase } from "../lib/supabase";
 
@@ -17,7 +18,7 @@ export function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!loading && profile) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultHomePath(profile.role)} replace />;
   }
 
   function handleHotelNameChange(value: string) {
@@ -54,7 +55,7 @@ export function RegisterPage() {
 
       await registerHotel(token, { hotelName, slug, adminName });
       await refreshProfile();
-      navigate("/dashboard");
+      navigate("/guest-requests");
     } catch (err) {
       setError(err instanceof Error ? err.message : "註冊失敗");
     } finally {

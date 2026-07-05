@@ -39,11 +39,10 @@ export function countStaleTickets(tickets: StaleTicketInput[]): number {
 }
 
 export function ticketListItemClass(stale: boolean): string {
-  const base =
-    "block rounded-xl bg-white p-4 shadow-sm transition hover:ring-indigo-300";
+  const base = "glog-card-hover block p-5";
   return stale
-    ? `${base} ring-2 ring-red-500 hover:ring-red-600`
-    : `${base} ring-1 ring-slate-200`;
+    ? `${base} ring-2 ring-red-400`
+    : `${base} ring-1 ring-slate-100`;
 }
 
 export function ticketRowClass(stale: boolean): string {

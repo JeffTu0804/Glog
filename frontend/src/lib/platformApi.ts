@@ -174,6 +174,22 @@ export const platformApi = {
     const q = search.toString() ? `?${search.toString()}` : "";
     return request<{ users: PlatformTenantUser[] }>(`/users${q}`, token);
   },
+
+  updateUser: (
+    token: string,
+    id: string,
+    body: {
+      tenantId?: string;
+      role?: string;
+      name?: string;
+      accountStatus?: string;
+      positionLevel?: string;
+    },
+  ) =>
+    request<{ user: PlatformTenantUser }>(`/users/${id}`, token, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
 };
 
 export { ApiError as PlatformApiError };

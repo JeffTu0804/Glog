@@ -8,6 +8,7 @@ import {
 } from "../components/ManagerAuthLayout";
 import { AuthFooterLink, OAuthButtons } from "../components/OAuthButtons";
 import { useAuth } from "../context/AuthContext";
+import { getDefaultHomePath } from "../lib/homeRoute";
 import type { LoginTarget } from "../types/auth";
 
 interface LoginPageContentProps {
@@ -43,7 +44,7 @@ function LoginPageContent({
     return <Navigate to="/manager" replace />;
   }
   if (!loading && target === "hotel" && hotelSession && profile) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={getDefaultHomePath(profile.role)} replace />;
   }
   if (!loading && target === "hotel" && hotelSession && !profile) {
     return <Navigate to="/register/complete" replace />;
@@ -55,7 +56,7 @@ function LoginPageContent({
     setSubmitting(true);
     try {
       const resolved = await login(email, password, target);
-      navigate(resolved === "platform" ? "/manager" : "/dashboard");
+      navigate(resolved === "platform" ? "/manager" : "/");
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "登入失敗";

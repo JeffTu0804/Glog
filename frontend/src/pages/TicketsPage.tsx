@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CreateTicketModal } from "../components/CreateTicketModal";
 import { PriorityBadge, StaleBadge, TicketStatusBadge } from "../components/TicketBadges";
+import { AlertBanner } from "../components/ui/AlertBanner";
+import { EmptyState } from "../components/ui/EmptyState";
+import { FilterChip } from "../components/ui/FilterChip";
+import { PageHeader } from "../components/ui/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import {
@@ -82,92 +86,59 @@ export function TicketsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">工程維修工單</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {isEngineer
-              ? "查看指派給您的維修任務，逾時項目請優先處理"
-              : "客房與設備報修，系統依技能自動派給工程部"}
-          </p>
-        </div>
-        {canCreate && (
-          <button
-            type="button"
-            onClick={() => setShowCreate(true)}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            + 報修
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="工程部"
+        subtitle={
+          isEngineer
+            ? "查看指派給您的維修任務，逾時項目請優先處理"
+            : "客房與設備報修，部門接單後上傳照片完成回報"
+        }
+        accent="blue"
+        action={
+          canCreate ? (
+            <button type="button" onClick={() => setShowCreate(true)} className="glog-btn-primary">
+              + 報修
+            </button>
+          ) : undefined
+        }
+      />
 
       {staleCount > 0 && (
-        <div className="mb-4 rounded-xl border-2 border-red-400 bg-red-50 px-4 py-3">
-          <p className="text-sm font-semibold text-red-900">
-            {staleCount} 項任務逾時未更新（超過 2 小時）
-          </p>
-          <p className="mt-0.5 text-xs text-red-700">
-            逾時工單以紅框標示，請優先跟進
-          </p>
-        </div>
+        <AlertBanner variant="warning" className="border-2 border-red-300 bg-red-50 text-red-900">
+          <span className="font-semibold">{staleCount} 項任務逾時未更新（超過 2 小時）</span>
+          <span className="mt-0.5 block text-xs opacity-80">逾時工單以紅框標示，請優先跟進</span>
+        </AlertBanner>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-6 flex flex-wrap items-center gap-2">
         {isEngineer && (
-          <button
-            type="button"
-            onClick={() => setMineOnly((v) => !v)}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              mineOnly
-                ? "bg-emerald-600 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            我的工單
-          </button>
+          <FilterChip label="我的工單" active={mineOnly} onClick={() => setMineOnly((v) => !v)} />
         )}
         {FILTER_OPTIONS.map((opt) => (
-          <button
+          <FilterChip
             key={opt.label}
-            type="button"
+            label={opt.label}
+            active={filter === opt.value}
             onClick={() => setFilter(opt.value)}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              filter === opt.value
-                ? "bg-indigo-600 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            {opt.label}
-          </button>
+          />
         ))}
       </div>
 
-      {error && (
-        <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
+      {error && <AlertBanner>{error}</AlertBanner>}
 
       {loading ? (
         <p className="text-sm text-slate-500">載入中…</p>
       ) : sortedTickets.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white py-12 text-center">
-          <p className="text-slate-500">
-            {mineOnly ? "目前沒有指派給您的工單" : "尚無工單"}
-          </p>
-        </div>
+        <EmptyState message={mineOnly ? "目前沒有指派給您的工單" : "尚無工單"} />
       ) : (
         <div className="space-y-3">
           {sortedTickets.map((ticket) => {
             const stale = isTicketStale(ticket);
             return (
-              <Link
-                key={ticket.id}
-                to={`/tickets/${ticket.id}`}
-                className={ticketListItemClass(stale)}
-              >
+              <Link key={ticket.id} to={`/tickets/${ticket.id}`} className={ticketListItemClass(stale)}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-medium text-slate-900">{ticket.title}</h3>
+                    <h3 className="font-semibold text-slate-900">{ticket.title}</h3>
                     <p className="mt-1 text-sm text-slate-500">
                       {ticket.asset.code} · {ticket.asset.name}
                     </p>
@@ -186,11 +157,9 @@ export function TicketsPage() {
                   {ticket.assignedTo ? (
                     <span>工程師：{ticket.assignedTo.name}</span>
                   ) : (
-                    <span className="text-amber-700">待工程部派工</span>
+                    <span className="font-medium text-amber-700">待工程部派工</span>
                   )}
-                  <span>
-                    建立：{new Date(ticket.triggeredAt).toLocaleString("zh-TW")}
-                  </span>
+                  <span>建立：{new Date(ticket.triggeredAt).toLocaleString("zh-TW")}</span>
                   {stale && ticket.updatedAt && (
                     <span className="font-medium text-red-600">
                       上次更新：{new Date(ticket.updatedAt).toLocaleString("zh-TW")}

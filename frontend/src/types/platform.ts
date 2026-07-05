@@ -94,8 +94,10 @@ export interface PlatformTenantUser {
   email: string;
   name: string;
   role: string;
+  department: string;
   status: string;
-  skills: string[];
+  accountStatus: string;
+  positionLevel: string;
   createdAt: string;
   tenant?: TenantBrief;
 }

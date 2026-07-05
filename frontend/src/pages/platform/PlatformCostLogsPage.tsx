@@ -5,6 +5,9 @@ import {
   TenantLabel,
   usePlatformTenants,
 } from "../../components/PlatformTenantFilter";
+import { AlertBanner } from "../../components/ui/AlertBanner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { platformApi } from "../../lib/platformApi";
 import type { PlatformCostLog } from "../../types/platform";
@@ -39,32 +42,27 @@ export function PlatformCostLogsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">成本紀錄</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            跨飯店維修成本 · 篩選結果累計 NT$ {total.toLocaleString()}
-          </p>
-        </div>
-        <PlatformTenantFilter tenants={tenants} value={tenantId} onChange={setTenantId} />
-      </div>
+      <PageHeader
+        title="成本紀錄"
+        subtitle={`跨飯店維修成本 · 篩選結果累計 NT$ ${total.toLocaleString()}`}
+        accent="violet"
+        action={
+          <PlatformTenantFilter tenants={tenants} value={tenantId} onChange={setTenantId} />
+        }
+      />
 
-      {error && (
-        <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
+      {error && <AlertBanner>{error}</AlertBanner>}
 
       {loading ? (
         <p className="text-slate-500">載入中…</p>
       ) : costLogs.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 py-12 text-center text-slate-500">
-          尚無成本紀錄
-        </div>
+        <EmptyState message="尚無成本紀錄" />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {costLogs.map((log) => (
             <div
               key={log.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+              className="glog-card flex flex-wrap items-center justify-between gap-3 p-4"
             >
               <div className="min-w-0 flex-1">
                 <div className="mb-2 flex flex-wrap items-center gap-3">

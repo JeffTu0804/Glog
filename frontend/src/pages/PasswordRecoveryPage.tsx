@@ -7,6 +7,7 @@ import {
   managerLinkClass,
 } from "../components/ManagerAuthLayout";
 import { useAuth } from "../context/AuthContext";
+import { getDefaultHomePath } from "../lib/homeRoute";
 import type { LoginTarget } from "../types/auth";
 import { consumeAuthHashSession, getSupabaseClient } from "../lib/supabase";
 
@@ -42,7 +43,7 @@ function ForgotPasswordPageContent({
       return <Navigate to="/manager" replace />;
     }
     if (target === "hotel" && hotelSession && profile) {
-      return <Navigate to="/dashboard" replace />;
+      return <Navigate to={getDefaultHomePath(profile.role)} replace />;
     }
   }
 

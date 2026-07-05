@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { AlertBanner } from "../components/ui/AlertBanner";
+import { EmptyState } from "../components/ui/EmptyState";
+import { FilterChip } from "../components/ui/FilterChip";
+import { PageHeader } from "../components/ui/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import { DEPARTMENT_LABELS, GUEST_STATUS_LABELS } from "../lib/guestApi";
@@ -53,49 +57,36 @@ export function GuestRequestsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">住客請求收件匣</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            房客掃碼提交的服務請求，依部門自動派單 · 30 分鐘未結案會提醒
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {isAdmin && (
-            <Link
-              to="/qr-rooms"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              QR 管理
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={() => setView(view === "inbox" ? "all" : "inbox")}
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-          >
-            {view === "inbox" ? "顯示全部" : "只看收件匣"}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="客人請求"
+        subtitle="房客掃碼提交的服務請求，依部門自動派單 · 30 分鐘未結案會提醒"
+        accent="sky"
+        action={
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Link to="/qr-rooms" className="glog-btn-secondary">
+                QR 管理
+              </Link>
+            )}
+            <FilterChip
+              label={view === "inbox" ? "顯示全部" : "只看收件匣"}
+              active={view === "all"}
+              onClick={() => setView(view === "inbox" ? "all" : "inbox")}
+            />
+          </div>
+        }
+      />
 
-      {error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-      )}
+      {error && <AlertBanner>{error}</AlertBanner>}
 
       {loading ? (
         <p className="text-slate-500">載入中…</p>
       ) : requests.length === 0 ? (
-        <p className="rounded-xl bg-white p-8 text-center text-slate-500 ring-1 ring-slate-200">
-          目前沒有待處理的住客請求
-        </p>
+        <EmptyState message="目前沒有待處理的住客請求" />
       ) : (
-        <ul className="space-y-4">
+        <ul className="space-y-3">
           {requests.map((req) => (
-            <li
-              key={req.id}
-              className="rounded-xl bg-white p-5 ring-1 ring-slate-200"
-            >
+            <li key={req.id} className="glog-card p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-slate-900">
@@ -129,7 +120,7 @@ export function GuestRequestsPage() {
                       type="button"
                       disabled={submitting === req.id}
                       onClick={() => void handleStatus(req.id, "processing")}
-                      className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm text-white hover:bg-indigo-700 disabled:opacity-50"
+                      className="glog-btn-primary px-3 py-1.5 text-sm disabled:opacity-50"
                     >
                       開始處理
                     </button>
@@ -138,7 +129,7 @@ export function GuestRequestsPage() {
                     type="button"
                     disabled={submitting === req.id}
                     onClick={() => void handleStatus(req.id, "completed")}
-                    className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-white hover:bg-slate-900 disabled:opacity-50"
+                    className="rounded-xl bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-50"
                   >
                     標記完成
                   </button>
@@ -149,7 +140,7 @@ export function GuestRequestsPage() {
                     onChange={(e) =>
                       setNotes((prev) => ({ ...prev, [req.id]: e.target.value }))
                     }
-                    className="min-w-[200px] flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+                    className="glog-input min-w-[200px] flex-1 py-1.5"
                   />
                 </div>
               )}

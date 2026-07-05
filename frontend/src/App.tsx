@@ -2,8 +2,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { PlatformLayout } from "./components/PlatformLayout";
 import { useAuth } from "./context/AuthContext";
+import { getDefaultHomePath } from "./lib/homeRoute";
 import { AssetsPage } from "./pages/AssetsPage";
-import { DashboardPage } from "./pages/DashboardPage";
+import { HomePage } from "./pages/HomePage";
 import { LandingPage } from "./pages/LandingPage";
 import { AuthCallbackPage, CompleteRegistrationPage } from "./pages/AuthCallbackPage";
 import { LogbookPage } from "./pages/LogbookPage";
@@ -19,9 +20,10 @@ import {
   ResetPasswordPage,
 } from "./pages/PasswordRecoveryPage";
 import { RegisterPage } from "./pages/RegisterPage";
-import { ServiceRequestsPage } from "./pages/ServiceRequestsPage";
 import { TicketDetailPage } from "./pages/TicketDetailPage";
-import { TicketsPage } from "./pages/TicketsPage";
+import { EngineeringDepartmentPage } from "./pages/departments/EngineeringDepartmentPage";
+import { FoodBeverageDepartmentPage } from "./pages/departments/FoodBeverageDepartmentPage";
+import { HousekeepingDepartmentPage } from "./pages/departments/HousekeepingDepartmentPage";
 import { PlatformDashboardPage } from "./pages/platform/PlatformDashboardPage";
 import { PlatformCostLogsPage } from "./pages/platform/PlatformCostLogsPage";
 import { PlatformInventoryPage } from "./pages/platform/PlatformInventoryPage";
@@ -65,9 +67,13 @@ function PlatformProtectedRoute({ children }: { children: React.ReactNode }) {
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
   if (profile?.role !== "ADMIN") {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={profile ? getDefaultHomePath(profile.role) : "/guest-requests"} replace />;
   }
   return <>{children}</>;
+}
+
+function HomeRedirect() {
+  return <Navigate to="/home" replace />;
 }
 
 export default function App() {
@@ -93,12 +99,19 @@ export default function App() {
           </HotelProtectedRoute>
         }
       >
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="tickets" element={<TicketsPage />} />
-        <Route path="service-requests" element={<ServiceRequestsPage />} />
+        <Route index element={<HomeRedirect />} />
+        <Route path="home" element={<HomePage />} />
+        <Route path="engineering" element={<EngineeringDepartmentPage />} />
+        <Route path="food-beverage" element={<FoodBeverageDepartmentPage />} />
         <Route path="guest-requests" element={<GuestRequestsPage />} />
-        <Route path="logbook" element={<LogbookPage />} />
+        <Route path="housekeeping" element={<HousekeepingDepartmentPage />} />
         <Route path="tickets/:id" element={<TicketDetailPage />} />
+
+        {/* 舊路徑導向 */}
+        <Route path="dashboard" element={<HomeRedirect />} />
+        <Route path="tickets" element={<Navigate to="/engineering" replace />} />
+        <Route path="service-requests" element={<Navigate to="/housekeeping" replace />} />
+        <Route path="logbook" element={<LogbookPage />} />
         <Route path="assets" element={<AssetsPage />} />
         <Route
           path="qr-rooms"
