@@ -214,3 +214,70 @@ export async function getTenantInventory(tenantId: string) {
     orderBy: [{ quantity: "asc" }, { name: "asc" }],
   });
 }
+
+const tenantBriefSelect = { id: true, name: true, slug: true } as const;
+
+export interface PlatformListQuery {
+  tenantId?: string;
+  lowStock?: boolean;
+}
+
+export async function listPlatformInventory(query: PlatformListQuery) {
+  const where: Prisma.InventoryWhereInput = {};
+  if (query.tenantId) where.tenantId = query.tenantId;
+
+  const items = await prisma.inventory.findMany({
+    where,
+    include: { tenant: { select: tenantBriefSelect } },
+    orderBy: [{ tenant: { name: "asc" } }, { name: "asc" }],
+    take: 200,
+  });
+
+  if (query.lowStock) {
+    return items.filter((item) => item.quantity <= item.reorderLevel);
+  }
+
+  return items;
+}
+
+export async function listPlatformCostLogs(query: { tenantId?: string }) {
+  const where: Prisma.CostLogWhereInput = {};
+  if (query.tenantId) where.tenantId = query.tenantId;
+
+  return prisma.costLog.findMany({
+    where,
+    include: {
+      tenant: { select: tenantBriefSelect },
+      ticket: {
+        select: {
+          id: true,
+          title: true,
+          asset: { select: { code: true, name: true } },
+        },
+      },
+    },
+    orderBy: { recordedAt: "desc" },
+    take: 200,
+  });
+}
+
+export async function listPlatformUsers(query: { tenantId?: string }) {
+  const where: Prisma.UserWhereInput = {};
+  if (query.tenantId) where.tenantId = query.tenantId;
+
+  return prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      status: true,
+      skills: true,
+      createdAt: true,
+      tenant: { select: tenantBriefSelect },
+    },
+    orderBy: [{ tenant: { name: "asc" } }, { name: "asc" }],
+    take: 200,
+  });
+}

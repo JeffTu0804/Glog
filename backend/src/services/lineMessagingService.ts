@@ -1,7 +1,14 @@
-import { Department, UserRole } from "@prisma/client";
+import { Department, TicketPriority, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { DEPARTMENT_LABELS, rolesForDepartment } from "../utils/department.js";
 import { withTenantScope } from "../utils/tenantScope.js";
+
+const PRIORITY_LABELS: Record<TicketPriority, string> = {
+  LOW: "低",
+  MEDIUM: "中",
+  HIGH: "高",
+  URGENT: "緊急",
+};
 
 export interface HandoverPushPayload {
   tenantId: string;
@@ -123,14 +130,97 @@ async function pushToDepartmentStaff(
   return { sent, skipped };
 }
 
-/** 住客請求建立時推播負責部門 */
+/** 新工程工單 — 推播工程部（glog LINE 官方助手） */
+export async function notifyTicketCreated(params: {
+  tenantId: string;
+  ticketId: string;
+  title: string;
+  description: string | null;
+  priority: TicketPriority;
+  assetCode: string;
+  assetName: string;
+  triggeredByName: string;
+  autoDispatched: boolean;
+  assigneeName?: string | null;
+}): Promise<void> {
+  const priorityLabel = PRIORITY_LABELS[params.priority];
+  const lines = [
+    "🔧 新工程工單",
+    `📍 ${params.assetCode} · ${params.assetName}`,
+    `📋 ${params.title}`,
+    `⚡ 優先級：${priorityLabel}`,
+    `👤 通報：${params.triggeredByName}`,
+  ];
+
+  if (params.description?.trim()) {
+    lines.push(`📝 ${params.description.trim().slice(0, 120)}`);
+  }
+
+  if (params.autoDispatched && params.assigneeName) {
+    lines.push(`✅ 已自動派給：${params.assigneeName}`);
+  } else {
+    lines.push("", "請至 Glog「工程工單」接單或派工。");
+  }
+
+  const message = lines.join("\n");
+
+  await pushToDepartmentStaff(params.tenantId, Department.ENGINEERING, message);
+}
+
+/** 工單逾時未接單 — 升級通知管理層 */
+export async function notifyTicketEscalated(params: {
+  tenantId: string;
+  ticketId: string;
+  title: string;
+  assetCode: string;
+  assetName: string;
+  triggeredByName: string;
+  minutesOverdue: number;
+}): Promise<void> {
+  const message = [
+    "🚨 工單逾時升級",
+    `⏱ 已超過 ${params.minutesOverdue} 分鐘無人接單`,
+    `📍 ${params.assetCode} · ${params.assetName}`,
+    `📋 ${params.title}`,
+    `👤 原通報：${params.triggeredByName}`,
+    "",
+    "請管理層協調工程部儘快處理。",
+  ].join("\n");
+
+  await pushToDepartmentStaff(params.tenantId, Department.MANAGEMENT, message);
+  await pushToDepartmentStaff(params.tenantId, Department.FRONT_DESK, message);
+}
+
+/** 新跨部門服務請求 — 推播目標部門 */
+export async function notifyServiceRequestCreated(params: {
+  tenantId: string;
+  title: string;
+  guestRoom: string;
+  guestName: string;
+  targetDepartment: Department;
+  scheduledLabel: string;
+}): Promise<void> {
+  const deptLabel = DEPARTMENT_LABELS[params.targetDepartment];
+  const message = [
+    "📅 新服務請求",
+    `📍 ${params.guestRoom} 號房 · ${params.guestName}`,
+    `📋 ${params.title}`,
+    `🕐 ${params.scheduledLabel}`,
+    `👥 負責：${deptLabel}`,
+    "",
+    "請至 Glog「服務請求」收件匣確認。",
+  ].join("\n");
+
+  await pushToDepartmentStaff(params.tenantId, params.targetDepartment, message);
+}
+
+/** 住客請求建立時推播負責部門（glog LINE 官方助手） */
 export async function notifyGuestRequestCreated(params: {
   tenantId: string;
   hotelName: string;
   roomNumber: string;
   requestLabel: string;
   department: Department;
-  lineOfficialToken?: string | null;
 }): Promise<void> {
   const deptLabel = DEPARTMENT_LABELS[params.department];
   const message = [
@@ -147,7 +237,6 @@ export async function notifyGuestRequestCreated(params: {
     params.tenantId,
     params.department,
     message,
-    params.lineOfficialToken ?? undefined,
   );
 }
 
@@ -158,7 +247,6 @@ export async function notifyGuestRequestOverdue(params: {
   roomNumber: string;
   requestLabel: string;
   department: Department;
-  lineOfficialToken?: string | null;
 }): Promise<void> {
   const deptLabel = DEPARTMENT_LABELS[params.department];
   const message = [
@@ -171,11 +259,10 @@ export async function notifyGuestRequestOverdue(params: {
     "已超過 30 分鐘，請儘快處理或協調。",
   ].join("\n");
 
-  const token = params.lineOfficialToken ?? undefined;
   await Promise.all([
-    pushToDepartmentStaff(params.tenantId, params.department, message, token),
+    pushToDepartmentStaff(params.tenantId, params.department, message),
     params.department !== Department.FRONT_DESK
-      ? pushToDepartmentStaff(params.tenantId, Department.FRONT_DESK, message, token)
+      ? pushToDepartmentStaff(params.tenantId, Department.FRONT_DESK, message)
       : Promise.resolve({ sent: 0, skipped: 0 }),
   ]);
 }

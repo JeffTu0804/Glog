@@ -12,6 +12,7 @@ import { canHandleDepartment, roleToDepartment } from "../utils/department.js";
 import { withTenantScope } from "../utils/tenantScope.js";
 import { parseEnumValue } from "../utils/validators.js";
 import { createImmediateDepartmentReminder } from "./reminderService.js";
+import { notifyServiceRequestCreated } from "./lineMessagingService.js";
 
 const REQUEST_INCLUDE = {
   createdBy: { select: { id: true, name: true, role: true } },
@@ -117,6 +118,15 @@ export async function createServiceRequest(
     });
 
     return created;
+  });
+
+  void notifyServiceRequestCreated({
+    tenantId,
+    title: request.title,
+    guestRoom: request.guestRoom,
+    guestName: request.guestName,
+    targetDepartment: request.targetDepartment,
+    scheduledLabel: formatTaipeiTime(request.scheduledAt),
   });
 
   return serializeRequest(request);

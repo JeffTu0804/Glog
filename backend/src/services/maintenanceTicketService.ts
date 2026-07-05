@@ -6,6 +6,10 @@ import {
   assignEngineerInTransaction,
   tryAutoDispatch,
 } from "./dispatchService.js";
+import {
+  cancelTicketEscalationReminders,
+  handleMaintenanceTicketCreated,
+} from "./ticketAlertService.js";
 
 export const TICKET_INCLUDE = {
   asset: {
@@ -189,6 +193,25 @@ export async function createTicket(
     return { ticket: fullTicket, autoDispatched: dispatch.dispatched };
   });
 
+  const triggeredBy = await prisma.user.findUnique({
+    where: { id: triggeredById },
+    select: { name: true },
+  });
+
+  void handleMaintenanceTicketCreated({
+    tenantId,
+    ticket: {
+      id: result.ticket.id,
+      title: result.ticket.title,
+      description: result.ticket.description,
+      priority: result.ticket.priority,
+      asset: result.ticket.asset,
+    },
+    triggeredByName: triggeredBy?.name ?? "同仁",
+    autoDispatched: result.autoDispatched,
+    assigneeName: result.ticket.assignedTo?.name,
+  });
+
   return result;
 }
 
@@ -233,6 +256,8 @@ export async function assignTicket(
       engineerId,
       ticket.assetId,
     );
+
+    await cancelTicketEscalationReminders(ticket.id);
 
     return tx.maintenanceTicket.findUniqueOrThrow({
       where: { id: ticket.id },
@@ -292,6 +317,8 @@ export async function updateTicketStatus(
         where: { id: ticket.assetId },
         data: { status: AssetStatus.OPERATIONAL },
       });
+
+      await cancelTicketEscalationReminders(ticket.id);
 
       return tx.maintenanceTicket.update({
         where: { id: ticket.id },

@@ -9,6 +9,7 @@ import { apiRouter } from "./routes/index.js";
 import { platformRouter } from "./routes/platform/index.js";
 import { getUploadRoot } from "./lib/photoStorage.js";
 import { guestPublicRouter } from "./routes/guestPublic.js";
+import { startAlertScheduler } from "./services/alertSchedulerService.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -42,4 +43,5 @@ app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`glog API server running on http://localhost:${PORT}`);
+  startAlertScheduler();
 });

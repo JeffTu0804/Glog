@@ -8,6 +8,7 @@ import {
 } from "../utils/guestRequestType.js";
 import { withTenantScope } from "../utils/tenantScope.js";
 import { notifyGuestRequestOverdue } from "./lineMessagingService.js";
+import { processDueTicketEscalations } from "./ticketAlertService.js";
 
 const REMINDER_INCLUDE = {
   serviceRequest: {
@@ -179,6 +180,8 @@ export async function cancelGuestRequestReminders(
 
 /** 觸發到期提醒並回傳給對應部門 */
 export async function getActiveReminders(tenantId: string, role: UserRole) {
+  await processDueTicketEscalations();
+
   const now = new Date();
   const dept = roleToDepartment(role);
 
@@ -212,7 +215,6 @@ export async function getActiveReminders(tenantId: string, role: UserRole) {
         roomNumber: r.guestRequest.room.roomNumber,
         requestLabel: GUEST_REQUEST_LABELS[type],
         department: r.guestRequest.targetDepartment as Department,
-        lineOfficialToken: r.guestRequest.hotel.lineOfficialToken,
       });
     }
   }

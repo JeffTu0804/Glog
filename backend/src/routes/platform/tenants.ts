@@ -8,6 +8,9 @@ import {
   getTenantInventory,
   getTenantTickets,
   getTenantUsers,
+  listPlatformCostLogs,
+  listPlatformInventory,
+  listPlatformUsers,
   listTenants,
   parseSubscriptionPlan,
   parseSubscriptionStatus,
@@ -168,5 +171,48 @@ platformTenantsRouter.get(
   asyncHandler(async (req, res) => {
     const items = await getTenantInventory(getParamId(req.params, "租戶 ID"));
     res.json({ items });
+  }),
+);
+
+/**
+ * GET /api/platform/v1/inventory
+ * 跨租戶庫存總覽
+ */
+platformTenantsRouter.get(
+  "/inventory",
+  asyncHandler(async (req, res) => {
+    const tenantId =
+      typeof req.query.tenantId === "string" ? req.query.tenantId : undefined;
+    const lowStock = req.query.lowStock === "true";
+    const items = await listPlatformInventory({ tenantId, lowStock });
+    res.json({ items });
+  }),
+);
+
+/**
+ * GET /api/platform/v1/cost-logs
+ * 跨租戶成本紀錄
+ */
+platformTenantsRouter.get(
+  "/cost-logs",
+  asyncHandler(async (req, res) => {
+    const tenantId =
+      typeof req.query.tenantId === "string" ? req.query.tenantId : undefined;
+    const costLogs = await listPlatformCostLogs({ tenantId });
+    res.json({ costLogs });
+  }),
+);
+
+/**
+ * GET /api/platform/v1/users
+ * 跨租戶員工列表
+ */
+platformTenantsRouter.get(
+  "/users",
+  asyncHandler(async (req, res) => {
+    const tenantId =
+      typeof req.query.tenantId === "string" ? req.query.tenantId : undefined;
+    const users = await listPlatformUsers({ tenantId });
+    res.json({ users });
   }),
 );

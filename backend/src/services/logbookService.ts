@@ -5,6 +5,7 @@ import { DEPARTMENT_LABELS } from "../utils/department.js";
 import { withTenantScope } from "../utils/tenantScope.js";
 import { generateAiSummary } from "./aiSummaryService.js";
 import { collectShiftSnapshot } from "./logbookCollectorService.js";
+import { tryCreateTicketFromLogbookEntry } from "./logbookAlertService.js";
 import { notifyDepartmentHandover } from "./lineMessagingService.js";
 import {
   formatShiftWindow,
@@ -162,6 +163,13 @@ export async function addLogEntry(
     include: { author: { select: { id: true, name: true } } },
   });
 
+  const ticketAlert = await tryCreateTicketFromLogbookEntry(
+    tenantId,
+    userId,
+    logbook.department,
+    trimmed,
+  );
+
   return {
     entry: {
       id: entry.id,
@@ -169,6 +177,7 @@ export async function addLogEntry(
       createdAt: entry.createdAt.toISOString(),
       author: entry.author,
     },
+    ticketAlert,
   };
 }
 

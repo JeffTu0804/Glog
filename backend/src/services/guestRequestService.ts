@@ -162,7 +162,6 @@ export async function submitGuestRequest(input: {
     roomNumber: room.roomNumber,
     requestLabel,
     department: targetDepartment,
-    lineOfficialToken: room.hotel.lineOfficialToken,
   }).catch((err) => console.error("[Guest LINE] 建立推播失敗", err));
 
   return serializeGuestRequest(created);
@@ -276,7 +275,6 @@ export async function processGuestRequestOverdueReminder(reminderId: string) {
     roomNumber: req.room.roomNumber,
     requestLabel: GUEST_REQUEST_LABELS[type],
     department: req.targetDepartment,
-    lineOfficialToken: req.hotel.lineOfficialToken,
   });
 }
 
