@@ -107,3 +107,68 @@ export interface TenantBrief {
   name: string;
   slug: string;
 }
+
+export type AnalyticsPeriod = "daily" | "weekly" | "monthly";
+
+export type AnalyticsDepartment =
+  | "all"
+  | "front_desk"
+  | "housekeeping"
+  | "engineering"
+  | "fb";
+
+export interface AnalyticsKpiCard {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export interface AnalyticsChartConfig {
+  ticketTrend: boolean;
+  categoryBreakdown: boolean;
+  topProblemRooms: boolean;
+  alertTrend: boolean;
+}
+
+export interface PlatformAnalytics {
+  period: AnalyticsPeriod;
+  periodLabel: string;
+  department: AnalyticsDepartment;
+  departmentLabel: string;
+  range: { start: string; end: string };
+  kpiCards: AnalyticsKpiCard[];
+  charts: AnalyticsChartConfig;
+  ticketEfficiency: {
+    total: number;
+    completed: number;
+    completionRate: number;
+    avgRepairMinutes: number | null;
+  };
+  categoryBreakdown: { category: string; count: number }[];
+  topProblemRooms: { roomNumber: string; count: number }[];
+  ticketTrend: { date: string; created: number; completed: number }[];
+  alerts: {
+    high: number;
+    medium: number;
+    total: number;
+    trend: { date: string; high: number; medium: number }[];
+  };
+  sharedDepartmentLogs: number;
+  departmentMetrics: {
+    guestRequestTotal: number;
+    guestResolutionRate: number;
+    serviceRequestTotal: number;
+    serviceRequestCompletionRate: number;
+    pendingServiceRequests: number;
+    avgServiceHandleMinutes: number | null;
+    departmentLogCount: number;
+    lostItemReports: number;
+  };
+}
+
+export interface ExecutiveSummary {
+  executive_summary: string;
+  top_3_issues: string[];
+  management_advice: string;
+  department_optimization?: string;
+}

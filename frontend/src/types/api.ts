@@ -106,9 +106,25 @@ export interface CostLog {
 export type ShiftType = "MORNING" | "AFTERNOON" | "NIGHT";
 export type ShiftLogbookStatus = "OPEN" | "PUBLISHED";
 
+export type RoutingVisibility = "internal" | "shared";
+export type RoutingUrgency = "low" | "medium" | "high";
+
+export interface RoutingDecision {
+  visibility: RoutingVisibility;
+  shared_with: string[];
+  reason: string;
+  urgency: RoutingUrgency;
+}
+
 export interface ShiftLogEntry {
   id: string;
   content: string;
+  visibility?: "INTERNAL" | "SHARED";
+  sharedWith?: Department[];
+  routingReason?: string | null;
+  urgency?: "LOW" | "MEDIUM" | "HIGH";
+  sourceDepartment?: Department | null;
+  isRoutedMirror?: boolean;
   createdAt: string;
   author: { id: string; name: string };
 }
@@ -271,6 +287,25 @@ export interface LogbookCurrentResponse {
   };
   logbook: ShiftLogbook;
   previousHandover: ShiftLogbook | null;
+  shiftDraft: ShiftDraft;
+}
+
+export interface ShiftDraftItem {
+  id: string;
+  kind:
+    | "ticket_open"
+    | "ticket_created"
+    | "service_pending"
+    | "guest_pending"
+    | "location"
+    | "inventory";
+  title: string;
+  detail?: string;
+}
+
+export interface ShiftDraft {
+  items: ShiftDraftItem[];
+  refreshedAt: string;
 }
 
 export type HandoverItemType = "HIGHLIGHT" | "OPEN_ITEM";

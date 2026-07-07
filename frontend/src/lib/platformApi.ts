@@ -1,6 +1,10 @@
 import type {
+  AnalyticsDepartment,
+  AnalyticsPeriod,
+  ExecutiveSummary,
   ManagerAccessRequest,
   PlatformAdmin,
+  PlatformAnalytics,
   PlatformCostLog,
   PlatformInventoryItem,
   PlatformOverview,
@@ -190,6 +194,33 @@ export const platformApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     }),
+
+  getAnalytics: (
+    token: string,
+    params?: { period?: AnalyticsPeriod; department?: AnalyticsDepartment; tenantId?: string },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.period) search.set("period", params.period);
+    if (params?.department) search.set("department", params.department);
+    if (params?.tenantId) search.set("tenantId", params.tenantId);
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return request<{ analytics: PlatformAnalytics }>(`/analytics${q}`, token);
+  },
+
+  getAnalyticsAiSummary: (
+    token: string,
+    params?: { period?: AnalyticsPeriod; department?: AnalyticsDepartment; tenantId?: string },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.period) search.set("period", params.period);
+    if (params?.department) search.set("department", params.department);
+    if (params?.tenantId) search.set("tenantId", params.tenantId);
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return request<{ summary: ExecutiveSummary; period: AnalyticsPeriod; department: AnalyticsDepartment }>(
+      `/analytics/ai-summary${q}`,
+      token,
+    );
+  },
 };
 
 export { ApiError as PlatformApiError };

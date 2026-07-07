@@ -13,6 +13,7 @@ import type {
   LogbookCurrentResponse,
   MaintenanceTicket,
   Reminder,
+  RoutingDecision,
   ServiceRequest,
   ShiftLogbook,
   TicketPriority,
@@ -203,9 +204,25 @@ export const api = {
     );
   },
 
-  addLogbookEntry: (token: string, logbookId: string, content: string) =>
+  previewLogbookRouting: (token: string, content: string, department?: Department) => {
+    const q = department ? `?department=${department}` : "";
+    return request<{ routing_decision: RoutingDecision }>(
+      `/logbook/preview-routing${q}`,
+      token,
+      { method: "POST", body: JSON.stringify({ content }) },
+    );
+  },
+
+  addLogbookEntry: (
+    token: string,
+    logbookId: string,
+    content: string,
+    routing_decision?: RoutingDecision,
+  ) =>
     request<{
-      entry: ShiftLogbook["entries"][number];
+      entry?: ShiftLogbook["entries"][number];
+      entries?: ShiftLogbook["entries"];
+      routedDepartments?: Department[];
       ticketAlert?: {
         ticketId: string;
         ticketTitle: string;
@@ -216,7 +233,10 @@ export const api = {
     }>(
       `/logbook/${logbookId}/entries`,
       token,
-      { method: "POST", body: JSON.stringify({ content }) },
+      {
+        method: "POST",
+        body: JSON.stringify({ content, routing_decision }),
+      },
     ),
 
   publishLogbook: (token: string, logbookId: string) =>

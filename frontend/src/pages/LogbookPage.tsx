@@ -1,6 +1,7 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { AlertBanner } from "../components/ui/AlertBanner";
+import { LogbookNoteForm } from "../components/LogbookNoteForm";
 import { PageHeader } from "../components/ui/PageHeader";
 import { api } from "../lib/api";
 import {
@@ -19,7 +20,6 @@ export function LogbookPage() {
   const [department, setDepartment] = useState<Department>(defaultDepartment);
   const [data, setData] = useState<LogbookCurrentResponse | null>(null);
   const [history, setHistory] = useState<ShiftLogbook[]>([]);
-  const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -63,28 +63,6 @@ export function LogbookPage() {
   const displayLogbook = viewing ?? data?.logbook ?? null;
   const isCurrentOpen = displayLogbook?.id === data?.logbook.id && data?.logbook.status === "OPEN";
 
-  async function handleAddNote(e: FormEvent) {
-    e.preventDefault();
-    if (!data?.logbook || !note.trim()) return;
-    setSubmitting(true);
-    setError("");
-    setSuccess("");
-    try {
-      const token = await getToken();
-      const result = await api.addLogbookEntry(token, data.logbook.id, note.trim());
-      setNote("");
-      if (result.ticketAlert) {
-        setSuccess(result.ticketAlert.message);
-      }
-      await load(department);
-      setSelectedId(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "新增備註失敗");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function handlePublish() {
     if (!data?.logbook) return;
     if (
@@ -122,7 +100,7 @@ export function LogbookPage() {
     <div className="space-y-6">
       <PageHeader
         title="AI 交班日誌"
-        subtitle="記錄本班事件，交班時自動產生摘要給接班同仁"
+        subtitle="系統自動記錄本班待追蹤事項；你可打字或 LINE 語音補充，交班後 AI 摘要推播給同部門"
         accent="violet"
         meta={
           <div className="flex flex-wrap items-center gap-2">
@@ -229,27 +207,50 @@ export function LogbookPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1 space-y-4">
-          <section className="glog-card p-5">
-            <h2 className="font-semibold text-slate-900">本班備註</h2>
-            <p className="mt-1 text-xs text-slate-500">記錄臨時狀況、客訴、特殊事項</p>
+          {data?.shiftDraft && data.shiftDraft.items.length > 0 && isCurrentOpen && (
+            <section className="glog-card border border-violet-100 p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-semibold text-slate-900">系統自動記錄</h2>
+                <span className="text-xs text-slate-400">
+                  {data.shiftDraft.items.length} 項待留意
+                </span>
+              </div>
+              <p className="mb-3 text-xs text-slate-500">
+                工單、住客請求、庫存等會自動彙整，交班時納入 AI 摘要
+              </p>
+              <ul className="max-h-56 space-y-2 overflow-y-auto">
+                {data.shiftDraft.items.map((item) => (
+                  <li
+                    key={item.id}
+                    className="rounded-xl bg-violet-50/60 px-3 py-2 text-sm text-slate-700"
+                  >
+                    <p className="font-medium">{item.title}</p>
+                    {item.detail && (
+                      <p className="mt-0.5 text-xs text-slate-500">{item.detail}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
-            {isCurrentOpen ? (
-              <form onSubmit={(e) => void handleAddNote(e)} className="mt-4 space-y-3">
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  rows={4}
-                  placeholder="例：302 房客人反應冷氣不冷（含房號+問題會自動開工單並 LINE 通知工程部）"
-                  className="glog-input resize-none"
-                />
-                <button
-                  type="submit"
-                  disabled={submitting || !note.trim()}
-                  className="glog-btn-primary w-full disabled:opacity-50"
-                >
-                  新增備註
-                </button>
-              </form>
+          <section className="glog-card p-5">
+            <h2 className="font-semibold text-slate-900">員工補充備註</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              輸入後由 AI 建議可見範圍，你可勾選僅本部門或要同步的部門
+            </p>
+
+            {isCurrentOpen && data?.logbook ? (
+              <LogbookNoteForm
+                logbookId={data.logbook.id}
+                department={department}
+                getToken={getToken}
+                onSaved={async () => {
+                  await load(department);
+                  setSelectedId(null);
+                }}
+                onTicketAlert={(message) => setSuccess(message)}
+              />
             ) : (
               <p className="mt-4 text-sm text-slate-500">本班已交班，無法新增備註</p>
             )}
@@ -257,7 +258,27 @@ export function LogbookPage() {
             <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto">
               {(displayLogbook?.entries ?? []).map((entry) => (
                 <li key={entry.id} className="rounded-xl bg-slate-50 p-3 text-sm">
+                  <div className="mb-1 flex flex-wrap gap-1.5">
+                    {entry.isRoutedMirror && (
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">
+                        跨部門同步
+                      </span>
+                    )}
+                    {entry.visibility === "SHARED" && !entry.isRoutedMirror && (
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                        已同步他部
+                      </span>
+                    )}
+                    {entry.urgency === "HIGH" && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                        高優先
+                      </span>
+                    )}
+                  </div>
                   <p className="text-slate-800">{entry.content}</p>
+                  {entry.routingReason && (
+                    <p className="mt-1 text-xs text-slate-500">路由：{entry.routingReason}</p>
+                  )}
                   <p className="mt-1 text-xs text-slate-400">
                     {entry.author.name} · {new Date(entry.createdAt).toLocaleString("zh-TW")}
                   </p>
@@ -311,7 +332,7 @@ export function LogbookPage() {
             </h2>
             <p className="relative mt-1 text-sm text-slate-500">
               {displayLogbook?.status === "OPEN"
-                ? "完成交班後，系統會彙整工單、地點、庫存與備註並產生 AI 摘要，並透過 LINE 推播給部門同仁"
+                ? "點擊「完成交班」或 LINE 回覆「交班」，系統會彙整自動記錄與備註並推播給同部門"
                 : `由 ${displayLogbook?.publishedBy?.name ?? "—"} 於 ${displayLogbook?.publishedAt ? new Date(displayLogbook.publishedAt).toLocaleString("zh-TW") : "—"} 交班`}
             </p>
 

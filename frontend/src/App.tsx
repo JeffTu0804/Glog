@@ -24,6 +24,7 @@ import { TicketDetailPage } from "./pages/TicketDetailPage";
 import { EngineeringDepartmentPage } from "./pages/departments/EngineeringDepartmentPage";
 import { FoodBeverageDepartmentPage } from "./pages/departments/FoodBeverageDepartmentPage";
 import { HousekeepingDepartmentPage } from "./pages/departments/HousekeepingDepartmentPage";
+import { PlatformAnalyticsPage } from "./pages/platform/PlatformAnalyticsPage";
 import { PlatformDashboardPage } from "./pages/platform/PlatformDashboardPage";
 import { PlatformCostLogsPage } from "./pages/platform/PlatformCostLogsPage";
 import { PlatformInventoryPage } from "./pages/platform/PlatformInventoryPage";
@@ -132,6 +133,7 @@ export default function App() {
       >
         <Route path="platform/*" element={<Navigate to="/manager" replace />} />
         <Route path="manager" element={<PlatformDashboardPage />} />
+        <Route path="manager/analytics" element={<PlatformAnalyticsPage />} />
         <Route path="manager/inventory" element={<PlatformInventoryPage />} />
         <Route path="manager/costs" element={<PlatformCostLogsPage />} />
         <Route path="manager/users" element={<PlatformUsersPage />} />

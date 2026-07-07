@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS: { to: string; label: string; end?: boolean }[] = [
   { to: "/manager", label: "租戶總覽", end: true },
+  { to: "/manager/analytics", label: "營運報表" },
   { to: "/manager/inventory", label: "庫存" },
   { to: "/manager/costs", label: "成本" },
   { to: "/manager/users", label: "員工" },
@@ -11,6 +12,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean }[] = [
 
 const PAGE_LABELS: Record<string, string> = {
   "/manager": "租戶總覽",
+  "/manager/analytics": "營運報表",
   "/manager/inventory": "庫存",
   "/manager/costs": "成本",
   "/manager/users": "員工",
