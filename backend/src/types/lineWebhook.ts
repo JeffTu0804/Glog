@@ -44,6 +44,21 @@ export interface LineSemanticEventData {
   description: string;
 }
 
+export type RoutingVisibility = "internal" | "shared";
+export type RoutingUrgency = "low" | "medium" | "high";
+export type RoutingDepartmentSlug =
+  | "front_desk"
+  | "housekeeping"
+  | "engineering"
+  | "fb";
+
+export interface RoutingDecision {
+  visibility: RoutingVisibility;
+  shared_with: string[];
+  reason: string;
+  urgency: RoutingUrgency;
+}
+
 export interface LineSemanticParseResult {
   has_task: boolean;
   task_data: LineSemanticTaskData | null;
@@ -51,6 +66,7 @@ export interface LineSemanticParseResult {
   alert_data: LineSemanticAlertData | null;
   has_event: boolean;
   event_data: LineSemanticEventData | null;
+  routing_decision: RoutingDecision;
 }
 
 export interface LineIntentPersistResult {

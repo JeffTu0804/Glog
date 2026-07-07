@@ -3,7 +3,9 @@ import type {
   LineSemanticEventData,
   LineSemanticParseResult,
   LineSemanticTaskData,
+  RoutingDecision,
 } from "../types/lineWebhook.js";
+import { normalizeRoutingDecision } from "./routingDecision.js";
 
 const TASK_CATEGORIES = new Set(["維修", "清潔", "客務"]);
 const ALERT_LEVELS = new Set(["high", "medium"]);
@@ -50,6 +52,13 @@ function parseEventData(value: unknown): LineSemanticEventData | null {
   };
 }
 
+const DEFAULT_ROUTING: RoutingDecision = {
+  visibility: "internal",
+  shared_with: [],
+  reason: "部門內部紀錄",
+  urgency: "low",
+};
+
 export function parseLineSemanticResult(raw: unknown): LineSemanticParseResult {
   const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
 
@@ -61,6 +70,10 @@ export function parseLineSemanticResult(raw: unknown): LineSemanticParseResult {
   const alert_data = has_alert ? parseAlertData(obj.alert_data) : null;
   const event_data = has_event ? parseEventData(obj.event_data) : null;
 
+  const routing_decision = obj.routing_decision
+    ? normalizeRoutingDecision(obj.routing_decision)
+    : { ...DEFAULT_ROUTING };
+
   return {
     has_task: has_task && !!task_data?.description,
     task_data,
@@ -68,5 +81,6 @@ export function parseLineSemanticResult(raw: unknown): LineSemanticParseResult {
     alert_data,
     has_event: has_event && !!event_data?.title,
     event_data,
+    routing_decision,
   };
 }

@@ -1,6 +1,8 @@
-import { AssetStatus, Department, TicketStatus, UserRole } from "@prisma/client";
+import { AssetStatus, Department, ServiceRequestStatus, TicketStatus, UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { GUEST_REQUEST_LABELS, isGuestRequestType } from "../utils/guestRequestType.js";
 import { withTenantScope } from "../utils/tenantScope.js";
+import { getHotelByTenantId } from "./hotelBootstrapService.js";
 import type { ResolvedShift } from "./shiftService.js";
 
 const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
@@ -64,6 +66,94 @@ export interface ShiftSnapshot {
     totalAmount: number;
     items: Array<{ description: string; amount: number }>;
   };
+  guestRequests?: {
+    pending: Array<{ roomNumber: string; requestLabel: string; createdAt: string }>;
+    handled: Array<{ roomNumber: string; requestLabel: string; status: string }>;
+  };
+}
+
+export interface ShiftDraftItem {
+  id: string;
+  kind:
+    | "ticket_open"
+    | "ticket_created"
+    | "service_pending"
+    | "guest_pending"
+    | "location"
+    | "inventory";
+  title: string;
+  detail?: string;
+}
+
+export function extractShiftDraft(snapshot: ShiftSnapshot): ShiftDraftItem[] {
+  const items: ShiftDraftItem[] = [];
+
+  for (const t of snapshot.tickets.stillOpen) {
+    items.push({
+      id: `open-${t.asset}-${t.title}`,
+      kind: "ticket_open",
+      title: `${t.asset}：${t.title}`,
+      detail: `狀態 ${t.status} · 優先 ${t.priority}`,
+    });
+  }
+
+  for (const t of snapshot.tickets.created) {
+    items.push({
+      id: `new-${t.asset}-${t.title}`,
+      kind: "ticket_created",
+      title: `本班新建：${t.asset} ${t.title}`,
+      detail: `${t.status} · ${t.by}`,
+    });
+  }
+
+  if (snapshot.serviceRequests) {
+    for (const r of snapshot.serviceRequests.pending) {
+      items.push({
+        id: `svc-${r.guestRoom}-${r.title}`,
+        kind: "service_pending",
+        title: `${r.guestRoom} 號房 · ${r.title}`,
+        detail: r.guestName,
+      });
+    }
+  }
+
+  if (snapshot.guestRequests) {
+    for (const r of snapshot.guestRequests.pending) {
+      items.push({
+        id: `guest-${r.roomNumber}-${r.requestLabel}`,
+        kind: "guest_pending",
+        title: `${r.roomNumber} 號房 · ${r.requestLabel}`,
+        detail: "住客掃碼請求待處理",
+      });
+    }
+  }
+
+  for (const loc of snapshot.locations.outOfOrder) {
+    items.push({
+      id: `ooo-${loc}`,
+      kind: "location",
+      title: `故障地點：${loc}`,
+    });
+  }
+
+  for (const loc of snapshot.locations.maintenance) {
+    items.push({
+      id: `maint-${loc}`,
+      kind: "location",
+      title: `維護中：${loc}`,
+    });
+  }
+
+  for (const item of snapshot.inventory.lowStock) {
+    items.push({
+      id: `inv-${item.name}`,
+      kind: "inventory",
+      title: `庫存不足：${item.name}`,
+      detail: `剩 ${item.quantity}（補貨線 ${item.reorderLevel}）`,
+    });
+  }
+
+  return items;
 }
 
 function rolesForDepartmentFilter(department: Department): UserRole[] {
@@ -147,7 +237,17 @@ export async function collectShiftSnapshot(
   const includeServiceRequests =
     department === Department.FRONT_DESK ||
     department === Department.FOOD_BEVERAGE ||
+    department === Department.HOUSEKEEPING ||
+    department === Department.ENGINEERING ||
     department === Department.MANAGEMENT;
+
+  const includeGuestRequests =
+    department === Department.FRONT_DESK ||
+    department === Department.HOUSEKEEPING ||
+    department === Department.ENGINEERING ||
+    department === Department.MANAGEMENT;
+
+  const hotel = includeGuestRequests ? await getHotelByTenantId(tenantId) : null;
 
   const [
     entries,
@@ -158,6 +258,7 @@ export async function collectShiftSnapshot(
     lowStock,
     costs,
     serviceRequests,
+    guestRequests,
   ] = await Promise.all([
     prisma.shiftLogEntry.findMany({
       where: { logbookId, tenantId },
@@ -229,10 +330,42 @@ export async function collectShiftSnapshot(
                       ],
                     }),
               },
+              {
+                status: {
+                  in: [ServiceRequestStatus.PENDING, ServiceRequestStatus.CONFIRMED],
+                },
+                ...(includeAll
+                  ? {}
+                  : { targetDepartment: department }),
+              },
             ],
           }),
           orderBy: { scheduledAt: "desc" },
-          take: 20,
+          take: 30,
+        })
+      : Promise.resolve([]),
+    hotel
+      ? prisma.guestRequest.findMany({
+          where: {
+            hotelId: hotel.id,
+            OR: [
+              {
+                createdAt: { gte: shiftStart, lt: shiftEnd },
+                ...(includeAll || department === Department.FRONT_DESK
+                  ? {}
+                  : { targetDepartment: department }),
+              },
+              {
+                status: { in: ["pending", "processing"] },
+                ...(includeAll || department === Department.FRONT_DESK
+                  ? {}
+                  : { targetDepartment: department }),
+              },
+            ],
+          },
+          include: { room: { select: { roomNumber: true } } },
+          orderBy: { createdAt: "desc" },
+          take: 30,
         })
       : Promise.resolve([]),
   ]);
@@ -301,7 +434,7 @@ export async function collectShiftSnapshot(
   if (includeServiceRequests && serviceRequests.length > 0) {
     snapshot.serviceRequests = {
       pending: serviceRequests
-        .filter((r) => r.status === "PENDING")
+        .filter((r) => r.status === "PENDING" || r.status === "CONFIRMED")
         .map((r) => ({
           title: r.title,
           guestRoom: r.guestRoom,
@@ -309,10 +442,34 @@ export async function collectShiftSnapshot(
           scheduledAt: r.scheduledAt.toISOString(),
         })),
       handled: serviceRequests
-        .filter((r) => r.status !== "PENDING")
+        .filter((r) => r.status === "COMPLETED" || r.status === "REJECTED")
+        .filter((r) => r.updatedAt >= shiftStart && r.updatedAt < shiftEnd)
         .map((r) => ({
           title: r.title,
           guestRoom: r.guestRoom,
+          status: r.status,
+        })),
+    };
+  }
+
+  if (guestRequests.length > 0) {
+    snapshot.guestRequests = {
+      pending: guestRequests
+        .filter((r) => r.status !== "completed")
+        .map((r) => ({
+          roomNumber: r.room.roomNumber,
+          requestLabel: isGuestRequestType(r.requestType)
+            ? GUEST_REQUEST_LABELS[r.requestType]
+            : r.requestType,
+          createdAt: r.createdAt.toISOString(),
+        })),
+      handled: guestRequests
+        .filter((r) => r.status === "completed")
+        .map((r) => ({
+          roomNumber: r.room.roomNumber,
+          requestLabel: isGuestRequestType(r.requestType)
+            ? GUEST_REQUEST_LABELS[r.requestType]
+            : r.requestType,
           status: r.status,
         })),
     };

@@ -91,5 +91,11 @@ function shutdown(signal: string) {
   });
 }
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+if (process.env.NODE_ENV !== "production") {
+  const instantKill = () => process.exit(0);
+  process.on("SIGTERM", instantKill);
+  process.on("SIGINT", instantKill);
+} else {
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+}

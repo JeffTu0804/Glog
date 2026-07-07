@@ -10,14 +10,18 @@ import {
 import { getParamId, parseEnumValue } from "../utils/validators.js";
 import {
   addLogEntry,
+  addRoutedLogbookEntries,
   getLatestPublishedLogbook,
   getLogbook,
   getOrCreateCurrentLogbook,
+  getShiftDraft,
   listLogbooks,
+  previewLogbookRouting,
   publishLogbook,
   refreshAiSummary,
 } from "../services/logbookService.js";
 import { formatShiftWindow } from "../services/shiftService.js";
+import { normalizeRoutingDecision } from "../utils/routingDecision.js";
 
 export const logbookRouter = Router();
 
@@ -39,6 +43,26 @@ function parseDepartmentQuery(
   return department;
 }
 
+/** POST /api/v1/logbook/preview-routing?department= — AI 建議跨部門路由 */
+logbookRouter.post(
+  "/preview-routing",
+  asyncHandler(async (req, res) => {
+    const { content } = req.body as { content?: unknown };
+    if (typeof content !== "string" || !content.trim()) {
+      res.status(400).json({ error: "content 為必填" });
+      return;
+    }
+
+    const department = parseDepartmentQuery(req.query.department, req.user!.role);
+    const routing_decision = await previewLogbookRouting(
+      content,
+      department,
+    );
+
+    res.json({ routing_decision });
+  }),
+);
+
 /** GET /api/v1/logbook/current?department=FRONT_DESK — 目前班別日誌 + 上一班交班摘要 */
 logbookRouter.get(
   "/current",
@@ -52,6 +76,11 @@ logbookRouter.get(
       getLatestPublishedLogbook(tenantId, department),
     ]);
 
+    const shiftDraft =
+      logbook.status === "OPEN"
+        ? await getShiftDraft(tenantId, logbook.id, department)
+        : { items: [], refreshedAt: new Date().toISOString() };
+
     res.json({
       department,
       shift: {
@@ -63,6 +92,7 @@ logbookRouter.get(
       },
       logbook,
       previousHandover,
+      shiftDraft,
     });
   }),
 );
@@ -89,12 +119,15 @@ logbookRouter.get(
   }),
 );
 
-/** POST /api/v1/logbook/:id/entries — 新增手動備註 */
+/** POST /api/v1/logbook/:id/entries — 新增手動備註（可附 routing_decision） */
 logbookRouter.post(
   "/:id/entries",
   asyncHandler(async (req, res) => {
-    const { content } = req.body as { content?: unknown };
-    if (typeof content !== "string") {
+    const body = req.body as {
+      content?: unknown;
+      routing_decision?: unknown;
+    };
+    if (typeof body.content !== "string") {
       res.status(400).json({ error: "content 為必填" });
       return;
     }
@@ -104,11 +137,24 @@ logbookRouter.post(
       throw new AppError(403, "無權限存取此部門的交班日誌");
     }
 
+    if (body.routing_decision) {
+      const routing = normalizeRoutingDecision(body.routing_decision);
+      const result = await addRoutedLogbookEntries(
+        req.user!.tenantId,
+        req.user!.id,
+        req.user!.role,
+        body.content,
+        routing,
+      );
+      res.status(201).json(result);
+      return;
+    }
+
     const result = await addLogEntry(
       req.user!.tenantId,
       req.user!.id,
       getParamId(req.params, "日誌 ID"),
-      content,
+      body.content,
     );
 
     res.status(201).json(result);

@@ -130,6 +130,19 @@ enum ShiftLogbookStatus {
   PUBLISHED  // 已交班，AI 摘要已產生
 }
 
+/// 交班備註可見度（跨部門路由）
+enum LogEntryVisibility {
+  INTERNAL // 僅來源部門
+  SHARED   // 同步至其他部門看版
+}
+
+/// 交班備註緊急程度
+enum LogEntryUrgency {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 /// 交班重點／待追蹤事項類型
 enum HandoverItemType {
   HIGHLIGHT  // 重點
@@ -409,12 +422,19 @@ model ShiftLogbook {
 
 /// 班別內手動備註
 model ShiftLogEntry {
-  id        String   @id @default(cuid())
-  tenantId  String
-  logbookId String
-  authorId  String
-  content   String   @db.Text
-  createdAt DateTime @default(now())
+  id               String             @id @default(cuid())
+  tenantId         String
+  logbookId        String
+  authorId         String
+  content          String             @db.Text
+  visibility       LogEntryVisibility @default(INTERNAL)
+  sharedWith       Department[]       @default([]) /// AI 路由：同步目標部門
+  routingReason    String?            /// AI 路由判斷原因
+  urgency          LogEntryUrgency    @default(LOW)
+  sourceDepartment Department?        /// 訊息來源部門
+  routingGroupId   String?            /// 跨部門鏡像群組 ID
+  isRoutedMirror   Boolean            @default(false) /// 是否為同步鏡像備註
+  createdAt        DateTime           @default(now())
 
   tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   logbook ShiftLogbook @relation(fields: [logbookId], references: [id], onDelete: Cascade)
@@ -422,6 +442,7 @@ model ShiftLogEntry {
 
   @@index([tenantId])
   @@index([logbookId])
+  @@index([routingGroupId])
 }
 
 /// 接班確認：員工勾選上一班交班重點／待追蹤事項

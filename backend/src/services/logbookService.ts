@@ -1,10 +1,22 @@
-import { Department, ShiftLogbookStatus, type Prisma } from "@prisma/client";
+import { Department, ShiftLogbookStatus, UserRole, type Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
-import { DEPARTMENT_LABELS } from "../utils/department.js";
+import { DEPARTMENT_LABELS, roleToDepartment } from "../utils/department.js";
+import {
+  resolveRoutedDepartments,
+  routingToDbFields,
+  normalizeRoutingDecision,
+} from "../utils/routingDecision.js";
+import type { RoutingDecision } from "../types/lineWebhook.js";
+import { parseLineMessageSemantics } from "./lineSemanticParserService.js";
 import { withTenantScope } from "../utils/tenantScope.js";
 import { generateAiSummary } from "./aiSummaryService.js";
-import { collectShiftSnapshot } from "./logbookCollectorService.js";
+import {
+  collectShiftSnapshot,
+  extractShiftDraft,
+  type ShiftDraftItem,
+} from "./logbookCollectorService.js";
 import { tryCreateTicketFromLogbookEntry } from "./logbookAlertService.js";
 import { notifyDepartmentHandover } from "./lineMessagingService.js";
 import {
@@ -26,6 +38,23 @@ export type LogbookPayload = Prisma.ShiftLogbookGetPayload<{
   include: typeof LOGBOOK_INCLUDE;
 }>;
 
+type LogEntryRow = LogbookPayload["entries"][number];
+
+function serializeLogEntry(e: LogEntryRow) {
+  return {
+    id: e.id,
+    content: e.content,
+    visibility: e.visibility,
+    sharedWith: e.sharedWith,
+    routingReason: e.routingReason,
+    urgency: e.urgency,
+    sourceDepartment: e.sourceDepartment,
+    isRoutedMirror: e.isRoutedMirror,
+    createdAt: e.createdAt.toISOString(),
+    author: e.author,
+  };
+}
+
 function serializeLogbook(logbook: LogbookPayload) {
   return {
     id: logbook.id,
@@ -44,12 +73,7 @@ function serializeLogbook(logbook: LogbookPayload) {
     createdBy: logbook.createdBy,
     publishedBy: logbook.publishedBy,
     publishedAt: logbook.publishedAt?.toISOString() ?? null,
-    entries: logbook.entries.map((e) => ({
-      id: e.id,
-      content: e.content,
-      createdAt: e.createdAt.toISOString(),
-      author: e.author,
-    })),
+    entries: logbook.entries.map(serializeLogEntry),
     createdAt: logbook.createdAt.toISOString(),
   };
 }
@@ -159,6 +183,7 @@ export async function addLogEntry(
       logbookId,
       authorId: userId,
       content: trimmed,
+      sourceDepartment: logbook.department,
     },
     include: { author: { select: { id: true, name: true } } },
   });
@@ -171,12 +196,72 @@ export async function addLogEntry(
   );
 
   return {
-    entry: {
-      id: entry.id,
-      content: entry.content,
-      createdAt: entry.createdAt.toISOString(),
-      author: entry.author,
-    },
+    entry: serializeLogEntry(entry),
+    ticketAlert,
+  };
+}
+
+/** 依 AI routing_decision 寫入來源部門與同步部門看版 */
+export async function addRoutedLogbookEntries(
+  tenantId: string,
+  userId: string,
+  userRole: UserRole,
+  content: string,
+  routing: RoutingDecision,
+) {
+  const trimmed = content.trim();
+  if (!trimmed) return { entries: [], routedDepartments: [] as Department[] };
+
+  const sourceDepartment = roleToDepartment(userRole);
+  const targetDepartments = resolveRoutedDepartments(sourceDepartment, routing);
+  const routingGroupId = randomUUID();
+  const dbRouting = routingToDbFields(routing, sourceDepartment);
+
+  const createdEntries: ReturnType<typeof serializeLogEntry>[] = [];
+  let ticketAlert: Awaited<ReturnType<typeof tryCreateTicketFromLogbookEntry>> = null;
+
+  for (const department of targetDepartments) {
+    const { logbook } = await getOrCreateCurrentLogbook(tenantId, userId, department);
+    if (logbook.status !== "OPEN") continue;
+
+    const isMirror = department !== sourceDepartment;
+    const mirrorPrefix = isMirror
+      ? `【${DEPARTMENT_LABELS[sourceDepartment]}同步】`
+      : "";
+    const entryContent = mirrorPrefix ? `${mirrorPrefix} ${trimmed}` : trimmed;
+
+    const entry = await prisma.shiftLogEntry.create({
+      data: {
+        tenantId,
+        logbookId: logbook.id,
+        authorId: userId,
+        content: entryContent,
+        visibility: dbRouting.visibility,
+        sharedWith: dbRouting.sharedWith,
+        routingReason: dbRouting.routingReason,
+        urgency: dbRouting.urgency,
+        sourceDepartment: dbRouting.sourceDepartment,
+        routingGroupId,
+        isRoutedMirror: isMirror,
+      },
+      include: { author: { select: { id: true, name: true } } },
+    });
+
+    createdEntries.push(serializeLogEntry(entry));
+
+    if (!isMirror) {
+      ticketAlert = await tryCreateTicketFromLogbookEntry(
+        tenantId,
+        userId,
+        department,
+        trimmed,
+      );
+    }
+  }
+
+  return {
+    entries: createdEntries,
+    routedDepartments: targetDepartments,
     ticketAlert,
   };
 }
@@ -283,4 +368,87 @@ export async function refreshAiSummary(tenantId: string, logbookId: string) {
   });
 
   return serializeLogbook(updated);
+}
+
+export async function previewLogbookRouting(
+  content: string,
+  sourceDepartment: Department,
+): Promise<RoutingDecision> {
+  const parsed = await parseLineMessageSemantics(content, sourceDepartment);
+  return parsed.routing_decision;
+}
+
+export async function getShiftDraft(
+  tenantId: string,
+  logbookId: string,
+  department: Department,
+) {
+  const logbook = await prisma.shiftLogbook.findFirst({
+    where: withTenantScope(tenantId, { id: logbookId }),
+  });
+
+  if (!logbook) {
+    throw new AppError(404, "找不到交班日誌");
+  }
+
+  const shift = {
+    shiftType: logbook.shiftType,
+    shiftDate: logbook.shiftDate,
+    shiftStart: logbook.shiftStart,
+    shiftEnd: logbook.shiftEnd,
+    label: getShiftLabel(logbook.shiftType),
+  };
+
+  const snapshot = await collectShiftSnapshot(
+    tenantId,
+    shift,
+    logbookId,
+    department,
+  );
+
+  return {
+    items: extractShiftDraft(snapshot),
+    refreshedAt: new Date().toISOString(),
+  } satisfies { items: ShiftDraftItem[]; refreshedAt: string };
+}
+
+/** LINE 或語音補充寫入當班交班日誌（含跨部門路由） */
+export async function addLineLogbookSupplement(
+  tenantId: string,
+  userId: string,
+  userRole: UserRole,
+  content: string,
+  routing?: RoutingDecision,
+) {
+  if (routing) {
+    return addRoutedLogbookEntries(tenantId, userId, userRole, content, routing);
+  }
+
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+
+  const department = roleToDepartment(userRole);
+  const { logbook } = await getOrCreateCurrentLogbook(tenantId, userId, department);
+
+  if (logbook.status !== "OPEN") {
+    return null;
+  }
+
+  return addLogEntry(tenantId, userId, logbook.id, trimmed);
+}
+
+/** LINE「交班」— 發布當部門交班日誌 */
+export async function publishCurrentDepartmentLogbook(
+  tenantId: string,
+  userId: string,
+  userRole: UserRole,
+) {
+  const department = roleToDepartment(userRole);
+  const { logbook } = await getOrCreateCurrentLogbook(tenantId, userId, department);
+
+  if (logbook.status === "PUBLISHED") {
+    throw new AppError(400, "本班已交班，請等待下一班別");
+  }
+
+  return publishLogbook(tenantId, userId, logbook.id);
 }
