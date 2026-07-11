@@ -109,7 +109,7 @@ export async function createDepartmentTaskFromLine(params: {
   });
 
   const deptLabel =
-    department === Department.HOUSEKEEPING ? "房務部" : "前台";
+    department === Department.HOUSEKEEPING ? "房務部" : "客務部";
   return `${deptLabel}任務：${params.title}（已通知部門，請回覆「接單」）`;
 }
 
@@ -353,7 +353,7 @@ export async function completeDepartmentTaskForUser(params: {
 
     void replyToLineUser(
       params.lineUserId,
-      `✅ 已完成並通知前台\n📍 ${inProgressRequest.guestRoom} 號房\n📋 ${inProgressRequest.title}`,
+      `✅ 已完成並通知客務部\n📍 ${inProgressRequest.guestRoom} 號房\n📋 ${inProgressRequest.title}`,
     );
 
     return `已完成：${inProgressRequest.guestRoom} 號房 ${inProgressRequest.title}`;

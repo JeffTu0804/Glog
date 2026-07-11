@@ -145,7 +145,7 @@ export async function createServiceRequest(
       roomNumber: request.guestRoom,
       title: request.title,
       description: request.description ?? "",
-      triggeredByName: creator?.name ?? "前台",
+      triggeredByName: creator?.name ?? "客務部",
     });
 
     await scheduleDepartmentAcceptReminder({

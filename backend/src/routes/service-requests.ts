@@ -148,7 +148,7 @@ serviceRequestsRouter.post(
       getParamId(req.params, "請求 ID"),
     );
 
-    res.json({ request, message: "任務已完成，已通知前台" });
+    res.json({ request, message: "任務已完成，已通知客務部" });
   }),
 );
 

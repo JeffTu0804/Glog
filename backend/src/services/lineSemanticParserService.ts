@@ -36,7 +36,7 @@ const SYSTEM_PROMPT = `你是飯店後勤 LINE 訊息解析助手。將同仁口
 【跨部門資訊路由 routing_decision — 必須輸出】
 - visibility: "internal" | "shared"
 - shared_with: 部門 slug 陣列，僅在 shared 時填寫，可選值：
-  "front_desk"（前台）、"housekeeping"（房務）、"engineering"（工程）、"fb"（餐飲）
+  "front_desk"（客務部）、"housekeeping"（房務）、"engineering"（工程）、"fb"（餐飲）
 - reason: 簡短說明為何如此路由（繁體中文，一句話）
 - urgency: "low" | "medium" | "high"
 

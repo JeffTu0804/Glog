@@ -101,7 +101,7 @@ function buildRuleBasedSummary(
           ? "建議優化退房尖峰清房動線，遺失物建立標準登記與交班模板。"
           : department === "front_desk"
             ? "建議在 Check-in 尖峰預先分流住客請求，客訴告警 15 分鐘內必須回覆。"
-            : "建議餐飲預約與前台同步確認機制，縮短待處理預約的滯留時間。";
+            : "建議餐飲預約與客務部同步確認機制，縮短待處理預約的滯留時間。";
   }
 
   return base;
@@ -119,7 +119,7 @@ function buildSystemPrompt(department: string, departmentLabel: string): string 
   }
 
   return `你是專業的「${departmentLabel}」營運顧問，為該部門主管撰寫深度營運簡報（非總經理視角）。
-針對該部門瓶頸（如工務修繕太慢、前台 Check-in 客訴集中、房務清房延遲、餐飲預約壅塞）給出具體建議。
+針對該部門瓶頸（如工務修繕太慢、客務部 Check-in 客訴集中、房務清房延遲、餐飲預約壅塞）給出具體建議。
 只輸出 JSON：
 {
   "executive_summary": "3-5句該部門營運現況（繁體中文）",

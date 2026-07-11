@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { UserRole } from "@prisma/client";
+import { UserPositionLevel, UserRole } from "@prisma/client";
 import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
 import { authenticateSupabase } from "../middleware/supabaseAuth.js";
@@ -15,7 +15,7 @@ export const authRouter = Router();
 
 const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: "管理員",
-  FRONT_DESK: "前台",
+  FRONT_DESK: "客務部",
   HOUSEKEEPING: "房務",
   ENGINEER: "工程師",
   FOOD_BEVERAGE: "餐飲部",
@@ -23,9 +23,20 @@ const ROLE_LABELS: Record<UserRole, string> = {
 
 function parseJoinRole(value: unknown): UserRole {
   if (typeof value !== "string" || !Object.values(UserRole).includes(value as UserRole)) {
-    throw new AppError(400, "請選擇有效的職位");
+    throw new AppError(400, "請選擇有效的部門");
   }
   return value as UserRole;
+}
+
+function parsePositionLevel(value: unknown): UserPositionLevel | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (
+    typeof value !== "string" ||
+    !Object.values(UserPositionLevel).includes(value as UserPositionLevel)
+  ) {
+    throw new AppError(400, "請選擇有效的職稱");
+  }
+  return value as UserPositionLevel;
 }
 
 /**
@@ -62,10 +73,11 @@ authRouter.post(
   "/join",
   authenticateSupabase,
   asyncHandler(async (req, res) => {
-    const { slug, name, role } = req.body as {
+    const { slug, name, role, positionLevel } = req.body as {
       slug?: unknown;
       name?: unknown;
       role?: unknown;
+      positionLevel?: unknown;
     };
 
     if (typeof slug !== "string" || !slug.trim()) {
@@ -77,6 +89,7 @@ authRouter.post(
 
     const auth = req.supabaseAuth!;
     const parsedRole = parseJoinRole(role);
+    const parsedPositionLevel = parsePositionLevel(positionLevel);
 
     const result = await joinHotel({
       supabaseUserId: auth.id,
@@ -84,6 +97,7 @@ authRouter.post(
       slug,
       name,
       role: parsedRole,
+      positionLevel: parsedPositionLevel,
       lineUserId: auth.lineSub,
     });
 

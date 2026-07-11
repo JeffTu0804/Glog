@@ -23,7 +23,7 @@ const SLUG_ALIASES: Record<string, AnalyticsDepartmentSlug> = {
 
 export const ANALYTICS_DEPARTMENT_LABELS: Record<AnalyticsDepartmentSlug, string> = {
   all: "全體部門",
-  front_desk: "前台客務",
+  front_desk: "客務部",
   housekeeping: "房務部",
   engineering: "工務部",
   fb: "餐飲部",

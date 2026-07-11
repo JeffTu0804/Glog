@@ -116,7 +116,7 @@ export function inferRoutingFromText(
 
   if (/客訴|投訴|vip|客人反應|客人很/.test(t)) {
     shared.add(Department.FRONT_DESK);
-    reasons.push("需前台跟進客人");
+    reasons.push("需客務部跟進客人");
     urgency = "high";
   }
 

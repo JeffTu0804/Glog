@@ -71,9 +71,12 @@ export async function submitTicketReport(
     throw new AppError(403, "僅工程師可提交現場回報");
   }
 
-  const note = input.note.trim();
-  if (!note) {
-    throw new AppError(400, "請填寫回報說明");
+  let note = input.note.trim();
+  if (input.type === "NEEDS_FRONT_DESK" && !note) {
+    throw new AppError(400, "請填寫無法處理的原因");
+  }
+  if (input.type === "COMPLETED" && !note) {
+    note = "已處理完成";
   }
 
   const ticket = await findTicketForTenant(tenantId, ticketId);
@@ -87,7 +90,10 @@ export async function submitTicketReport(
   }
 
   const roomLabel = `${ticket.asset.code} 號房`;
-  const urls = await saveTicketPhotos(tenantId, ticket.id, input.photos);
+  const urls =
+    input.photos.length > 0
+      ? await saveTicketPhotos(tenantId, ticket.id, input.photos)
+      : [];
   const now = new Date();
   const kind = attachmentKind(input.type);
   const status = nextStatus(input.type);
@@ -131,14 +137,14 @@ export async function submitTicketReport(
         tenantId,
         maintenanceTicketId: ticket.id,
         title: `工程完工：${ticket.title}`,
-        message: `${roomLabel} 工程師已完工並上傳照片。說明：${note}。請確認現場並通知相關人員。`,
+        message: `${roomLabel} 工程師已回報完工。說明：${note}。請確認現場並通知相關人員。`,
         notifyDepartment: Department.FRONT_DESK,
       });
     } else {
       await createTriggeredReminder(tx, {
         tenantId,
         maintenanceTicketId: ticket.id,
-        title: `需前台協助：${ticket.title}`,
+        title: `需客務部協助：${ticket.title}`,
         message: `${roomLabel} 工程師無法自行處理，請協助（換房、通知客人等）。原因：${note}`,
         notifyDepartment: Department.FRONT_DESK,
       });
@@ -158,7 +164,7 @@ export async function resolveFrontDeskEscalation(
   note: string,
 ) {
   if (actor.role !== UserRole.FRONT_DESK && actor.role !== UserRole.ADMIN) {
-    throw new AppError(403, "僅前台或管理員可處理此案件");
+    throw new AppError(403, "僅客務部或管理員可處理此案件");
   }
 
   const deskNote = note.trim();
@@ -175,7 +181,7 @@ export async function resolveFrontDeskEscalation(
   }
 
   if (ticket.status !== TicketStatus.PENDING_FRONT_DESK) {
-    throw new AppError(400, "此工單不在待前台協助狀態");
+    throw new AppError(400, "此工單不在待客務部協助狀態");
   }
 
   const now = new Date();
@@ -217,14 +223,8 @@ export function parseTicketReportBody(body: Record<string, unknown>): SubmitTick
   if (type !== "COMPLETED" && type !== "NEEDS_FRONT_DESK") {
     throw new AppError(400, "type 必須為 COMPLETED 或 NEEDS_FRONT_DESK");
   }
-  if (typeof note !== "string") {
-    throw new AppError(400, "note 為必填");
-  }
-  if (!Array.isArray(photos) || photos.length === 0) {
-    throw new AppError(400, "photos 為必填且至少一張");
-  }
-
-  const parsed: PhotoInput[] = photos.map((item, index) => {
+  const photoArray = Array.isArray(photos) ? photos : [];
+  const parsed: PhotoInput[] = photoArray.map((item, index) => {
     if (typeof item !== "object" || item === null) {
       throw new AppError(400, `photos[${index}] 格式無效`);
     }
@@ -238,5 +238,5 @@ export function parseTicketReportBody(body: Record<string, unknown>): SubmitTick
     };
   });
 
-  return { type, note, photos: parsed };
+  return { type, note: typeof note === "string" ? note : "", photos: parsed };
 }

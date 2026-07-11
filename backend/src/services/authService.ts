@@ -1,4 +1,9 @@
-import { SubscriptionPlan, SubscriptionStatus, UserRole } from "@prisma/client";
+import {
+  SubscriptionPlan,
+  SubscriptionStatus,
+  UserPositionLevel,
+  UserRole,
+} from "@prisma/client";
 import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
 import { roleToDepartment } from "../utils/department.js";
@@ -20,6 +25,7 @@ export interface JoinHotelInput {
   slug: string;
   name: string;
   role: UserRole;
+  positionLevel?: UserPositionLevel;
   lineUserId?: string;
 }
 
@@ -120,6 +126,7 @@ export async function joinHotel(input: JoinHotelInput) {
         email: email || `${input.supabaseUserId}@oauth.local`,
         name: input.name.trim(),
         role: input.role,
+        positionLevel: input.positionLevel ?? UserPositionLevel.STAFF,
         skills: defaultSkillsForRole(input.role),
         lineUserId: input.lineUserId?.trim() || undefined,
       },

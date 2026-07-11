@@ -10,6 +10,8 @@ import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
 import { roleToDepartment } from "../utils/department.js";
 import { parseEnumValue } from "../utils/validators.js";
+import { seedStarterAssets } from "./tenantBootstrapService.js";
+import { ensureHotelForTenant, syncRoomsFromAssets } from "./hotelBootstrapService.js";
 
 const VALID_PLANS = Object.values(SubscriptionPlan);
 const VALID_STATUSES = Object.values(SubscriptionStatus);
@@ -143,6 +145,65 @@ export async function listTenants(query: TenantListQuery) {
       stats: await getTenantStats(tenant.id),
     })),
   );
+}
+
+function normalizeSlug(slug: string): string {
+  return slug
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+}
+
+export interface CreateTenantInput {
+  name: string;
+  slug: string;
+  contactEmail?: string;
+}
+
+/**
+ * 平台管理員建立新飯店（租戶）。
+ * 只建立 Tenant + 飯店基礎資料（起始資產、hotel 紀錄），
+ * 不建立任何 User、也不觸碰呼叫者的 authProfile，避免把平台管理員誤綁成飯店員工。
+ */
+export async function createTenant(input: CreateTenantInput) {
+  const name = input.name.trim();
+  if (!name) {
+    throw new AppError(400, "飯店名稱為必填");
+  }
+
+  const slug = normalizeSlug(input.slug);
+  if (!slug || slug.length < 2) {
+    throw new AppError(400, "飯店代碼至少需 2 個字元（英文、數字、連字號）");
+  }
+
+  const existingSlug = await prisma.tenant.findUnique({ where: { slug } });
+  if (existingSlug) {
+    throw new AppError(409, "此飯店代碼已被使用，請換一個");
+  }
+
+  const contactEmail = input.contactEmail?.trim().toLowerCase() || undefined;
+
+  const tenant = await prisma.$transaction(async (tx) => {
+    const created = await tx.tenant.create({
+      data: {
+        name,
+        slug,
+        contactEmail,
+        plan: SubscriptionPlan.TRIAL,
+        subscriptionStatus: SubscriptionStatus.TRIAL,
+      },
+    });
+
+    await seedStarterAssets(tx, created.id);
+    await ensureHotelForTenant(tx, created.id, name);
+    await syncRoomsFromAssets(tx, created.id);
+
+    return created;
+  });
+
+  const stats = await getTenantStats(tenant.id);
+  return { ...tenant, stats };
 }
 
 export async function findTenantOrThrow(tenantId: string) {

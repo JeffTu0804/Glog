@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { AppError } from "../../errors/AppError.js";
 import {
+  createTenant,
   findTenantOrThrow,
   getPlatformOverview,
   getTenantAssets,
@@ -54,6 +55,35 @@ platformTenantsRouter.get(
     });
 
     res.json({ tenants });
+  }),
+);
+
+/**
+ * POST /api/platform/v1/tenants
+ * 平台管理員建立新飯店（租戶）
+ */
+platformTenantsRouter.post(
+  "/tenants",
+  asyncHandler(async (req, res) => {
+    const { name, slug, contactEmail } = req.body as Record<string, unknown>;
+
+    if (typeof name !== "string" || !name.trim()) {
+      throw new AppError(400, "飯店名稱為必填");
+    }
+    if (typeof slug !== "string" || !slug.trim()) {
+      throw new AppError(400, "飯店代碼為必填");
+    }
+    if (contactEmail !== undefined && typeof contactEmail !== "string") {
+      throw new AppError(400, "contactEmail 必須為字串");
+    }
+
+    const tenant = await createTenant({
+      name,
+      slug,
+      contactEmail: typeof contactEmail === "string" ? contactEmail : undefined,
+    });
+
+    res.status(201).json({ tenant });
   }),
 );
 
