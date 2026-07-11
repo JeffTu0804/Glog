@@ -34,7 +34,7 @@ const PERIOD_OPTIONS: { value: AnalyticsPeriod; label: string }[] = [
 
 const DEPARTMENT_OPTIONS: { value: AnalyticsDepartment; label: string }[] = [
   { value: "all", label: "全體部門" },
-  { value: "front_desk", label: "前台客務" },
+  { value: "front_desk", label: "客務部" },
   { value: "housekeeping", label: "房務部" },
   { value: "engineering", label: "工務部" },
   { value: "fb", label: "餐飲部" },

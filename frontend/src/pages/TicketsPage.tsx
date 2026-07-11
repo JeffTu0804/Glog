@@ -24,7 +24,7 @@ const FILTER_OPTIONS: { value: TicketStatus | ""; label: string }[] = [
   { value: "OPEN", label: "待派單" },
   { value: "ASSIGNED", label: "已指派" },
   { value: "IN_PROGRESS", label: "進行中" },
-  { value: "PENDING_FRONT_DESK", label: "待前台" },
+  { value: "PENDING_FRONT_DESK", label: "待客務部" },
   { value: "CLOSED", label: "已結案" },
 ];
 

@@ -1,12 +1,13 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { OnboardingGuard } from "./components/OnboardingGuard";
 import { PlatformLayout } from "./components/PlatformLayout";
 import { useAuth } from "./context/AuthContext";
 import { getDefaultHomePath } from "./lib/homeRoute";
 import { AssetsPage } from "./pages/AssetsPage";
 import { HomePage } from "./pages/HomePage";
 import { LandingPage } from "./pages/LandingPage";
-import { AuthCallbackPage, CompleteRegistrationPage } from "./pages/AuthCallbackPage";
+import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { LogbookPage } from "./pages/LogbookPage";
 import { GuestRequestsPage } from "./pages/GuestRequestsPage";
 import { GuestScanPage } from "./pages/GuestScanPage";
@@ -24,6 +25,7 @@ import { TicketDetailPage } from "./pages/TicketDetailPage";
 import { EngineeringDepartmentPage } from "./pages/departments/EngineeringDepartmentPage";
 import { FoodBeverageDepartmentPage } from "./pages/departments/FoodBeverageDepartmentPage";
 import { HousekeepingDepartmentPage } from "./pages/departments/HousekeepingDepartmentPage";
+import { FrontOfficeDepartmentPage } from "./pages/departments/FrontOfficeDepartmentPage";
 import { PlatformAnalyticsPage } from "./pages/platform/PlatformAnalyticsPage";
 import { PlatformDashboardPage } from "./pages/platform/PlatformDashboardPage";
 import { PlatformCostLogsPage } from "./pages/platform/PlatformCostLogsPage";
@@ -32,7 +34,7 @@ import { PlatformUsersPage } from "./pages/platform/PlatformUsersPage";
 import { TenantDetailPage } from "./pages/platform/TenantDetailPage";
 
 function HotelProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { hotelSession, profile, loading } = useAuth();
+  const { hotelSession, loading } = useAuth();
 
   if (loading) {
     return (
@@ -43,9 +45,9 @@ function HotelProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!hotelSession) return <Navigate to="/login" replace />;
-  if (!profile) return <Navigate to="/register/complete" replace />;
 
-  return <>{children}</>;
+  // 首次登入以 profiles.is_onboarded 為準，由 OnboardingGuard 強制問卷攔截
+  return <OnboardingGuard>{children}</OnboardingGuard>;
 }
 
 function PlatformProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -89,7 +91,6 @@ export default function App() {
       <Route path="/manager/forgot-password" element={<ManagerForgotPasswordPage />} />
       <Route path="/manager/reset-password" element={<ManagerResetPasswordPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/register/complete" element={<CompleteRegistrationPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/guest" element={<GuestScanPage />} />
 
@@ -102,6 +103,7 @@ export default function App() {
       >
         <Route index element={<HomeRedirect />} />
         <Route path="home" element={<HomePage />} />
+        <Route path="front-office" element={<FrontOfficeDepartmentPage />} />
         <Route path="engineering" element={<EngineeringDepartmentPage />} />
         <Route path="food-beverage" element={<FoodBeverageDepartmentPage />} />
         <Route path="guest-requests" element={<GuestRequestsPage />} />

@@ -192,7 +192,7 @@ export function ServiceRequestsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">服務請求</h1>
           <p className="mt-1 text-sm text-slate-500">
-            部門任務接單 · 餐廳預約確認 · 完成後上傳照片通知前台
+            部門任務接單 · 餐廳預約確認 · 完成後上傳照片通知客務部
           </p>
         </div>
         {canCreate && (
@@ -300,7 +300,7 @@ export function ServiceRequestsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">提醒前台通知客人</label>
+                <label className="mb-1 block text-sm font-medium">提醒客務部通知客人</label>
                 <input
                   type="datetime-local"
                   value={reminderAt}
@@ -505,7 +505,7 @@ function RequestCard({
                     onClick={onComplete}
                     className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
                   >
-                    完成並通知前台
+                    完成並通知客務部
                   </button>
                   <button
                     type="button"

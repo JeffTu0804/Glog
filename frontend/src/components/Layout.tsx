@@ -6,6 +6,7 @@ import { ROLE_LABELS } from "./TicketBadges";
 
 const NAV_ITEMS = [
   { to: "/home", label: "首頁" },
+  { to: "/front-office", label: "客務部" },
   { to: "/engineering", label: "工程部" },
   { to: "/food-beverage", label: "餐飲部" },
   { to: "/guest-requests", label: "客人請求" },

@@ -1,9 +1,8 @@
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getDefaultHomePath } from "../lib/homeRoute";
 
 export function LandingPage() {
-  const { hotelSession, managerSession, profile, isPlatformAdmin, loading } = useAuth();
+  const { hotelSession, managerSession, isPlatformAdmin, loading } = useAuth();
 
   if (loading) {
     return (
@@ -13,8 +12,8 @@ export function LandingPage() {
     );
   }
 
-  if (hotelSession && profile) {
-    return <Navigate to={getDefaultHomePath(profile.role)} replace />;
+  if (hotelSession) {
+    return <Navigate to="/home" replace />;
   }
   if (managerSession && isPlatformAdmin) {
     return <Navigate to="/manager" replace />;

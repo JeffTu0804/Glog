@@ -8,7 +8,6 @@ import {
 } from "../components/ManagerAuthLayout";
 import { AuthFooterLink, OAuthButtons } from "../components/OAuthButtons";
 import { useAuth } from "../context/AuthContext";
-import { getDefaultHomePath } from "../lib/homeRoute";
 import type { LoginTarget } from "../types/auth";
 
 interface LoginPageContentProps {
@@ -24,7 +23,7 @@ function LoginPageContent({
   subtitle,
   forgotPasswordPath,
 }: LoginPageContentProps) {
-  const { login, hotelSession, managerSession, isPlatformAdmin, profile, loading } = useAuth();
+  const { login, hotelSession, managerSession, isPlatformAdmin, loading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState("");
@@ -43,11 +42,9 @@ function LoginPageContent({
   if (!loading && target === "platform" && managerSession && isPlatformAdmin) {
     return <Navigate to="/manager" replace />;
   }
-  if (!loading && target === "hotel" && hotelSession && profile) {
-    return <Navigate to={getDefaultHomePath(profile.role)} replace />;
-  }
-  if (!loading && target === "hotel" && hotelSession && !profile) {
-    return <Navigate to="/register/complete" replace />;
+  if (!loading && target === "hotel" && hotelSession) {
+    // 已加入者進後台、未加入者由 OnboardingGuard 在 /home 攔截問卷
+    return <Navigate to="/home" replace />;
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -75,8 +72,8 @@ function LoginPageContent({
       } else if (msg.includes("已被拒絕")) {
         setError("你的 Manager 權限申請已被拒絕，請聯絡現有管理員。");
       } else if (msg.includes("尚未在系統中註冊")) {
-        setError("帳號已通過驗證，但尚未建立飯店，請先完成註冊");
-        navigate("/register/complete");
+        setError("帳號已通過驗證，但尚未加入飯店，請先完成設定");
+        navigate("/home");
       } else {
         setError(msg);
       }

@@ -15,7 +15,7 @@ export const GUEST_STATUS_LABELS: Record<string, string> = {
 };
 
 export const DEPARTMENT_LABELS: Record<Department, string> = {
-  FRONT_DESK: "前台",
+  FRONT_DESK: "客務部",
   FOOD_BEVERAGE: "餐飲部",
   HOUSEKEEPING: "房務部",
   ENGINEERING: "工程部",

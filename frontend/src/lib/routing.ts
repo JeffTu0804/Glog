@@ -6,7 +6,7 @@ export const ROUTING_SLUG_OPTIONS: {
   department: Department;
   label: string;
 }[] = [
-  { slug: "front_desk", department: "FRONT_DESK", label: "前台" },
+  { slug: "front_desk", department: "FRONT_DESK", label: "客務部" },
   { slug: "housekeeping", department: "HOUSEKEEPING", label: "房務部" },
   { slug: "engineering", department: "ENGINEERING", label: "工程部" },
   { slug: "fb", department: "FOOD_BEVERAGE", label: "餐飲部" },

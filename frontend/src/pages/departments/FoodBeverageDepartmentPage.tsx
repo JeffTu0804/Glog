@@ -90,7 +90,7 @@ export function FoodBeverageDepartmentPage() {
     <div>
       <PageHeader
         title="餐飲部"
-        subtitle="餐廳預約確認 — 前台送來的預約請求，確認後系統會提醒前台通知客人"
+        subtitle="餐廳預約確認 — 客務部送來的預約請求，確認後系統會提醒客務部通知客人"
         accent="amber"
         action={
           canCreate ? (

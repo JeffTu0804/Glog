@@ -47,9 +47,16 @@ export type JoinableRole =
   | "ENGINEER"
   | "FOOD_BEVERAGE";
 
+export type PositionLevel = "STAFF" | "SUPERVISOR" | "MANAGER";
+
 export async function joinHotel(
   token: string,
-  body: { slug: string; name: string; role: JoinableRole },
+  body: {
+    slug: string;
+    name: string;
+    role: JoinableRole;
+    positionLevel?: PositionLevel;
+  },
 ) {
   const res = await fetch(`${API_BASE}/api/v1/auth/join`, {
     method: "POST",

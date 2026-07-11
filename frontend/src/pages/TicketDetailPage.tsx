@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { PriorityBadge, StaleBadge, TicketStatusBadge } from "../components/TicketBadges";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
-import { filesToPhotoPayload, uploadUrl } from "../lib/photoUpload";
+import { uploadUrl } from "../lib/photoUpload";
 import {
   formatStaleDuration,
   getStaleDurationMs,
@@ -31,13 +31,13 @@ function nextStepHint(status: TicketStatus, role: string | undefined): string {
     case "OPEN":
       return "請先指派工程師。指派後，工程師點「開始作業」才能上傳現場照片。";
     case "ASSIGNED":
-      return "工程師請點「開始作業」，進入現場後可拍照回報完工或申請前台協助。";
+      return "工程師請點「開始作業」，進入現場後可拍照回報完工或申請客務部協助。";
     case "IN_PROGRESS":
       return "請在下方「現場回報」上傳至少一張照片並填寫說明。";
     case "PENDING_FRONT_DESK":
       return role === "FRONT_DESK" || role === "ADMIN"
         ? "請在下方協調處理（換房、通知客人等），並記錄備註。"
-        : "已通知前台協助，請等待前台處理。";
+        : "已通知客務部協助，請等待客務部處理。";
     case "COMPLETED":
       return "工程已回報完工，可進行財務結案（耗材選填）。";
     default:
@@ -62,8 +62,7 @@ export function TicketDetailPage() {
   const [laborCost, setLaborCost] = useState(0);
 
   const [reportNote, setReportNote] = useState("");
-  const [reportPhotos, setReportPhotos] = useState<File[]>([]);
-  const [reportType, setReportType] = useState<"COMPLETED" | "NEEDS_FRONT_DESK">("COMPLETED");
+  const [escalating, setEscalating] = useState(false);
   const [frontDeskNote, setFrontDeskNote] = useState("");
 
   async function loadTicket() {
@@ -105,8 +104,8 @@ export function TicketDetailPage() {
     setSubmitting(true);
     try {
       await action();
-      setReportPhotos([]);
       setReportNote("");
+      setEscalating(false);
       await loadTicket();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "操作失敗");
@@ -158,19 +157,30 @@ export function TicketDetailPage() {
     });
   }
 
-  async function handleReport(e: FormEvent) {
-    e.preventDefault();
-    if (!id || reportPhotos.length === 0) {
-      setActionError("請至少上傳一張現場照片");
+  async function handleComplete() {
+    if (!id) return;
+    await runAction(async () => {
+      const token = await getToken();
+      await api.submitTicketReport(token, id, {
+        type: "COMPLETED",
+        note: reportNote.trim() || "已處理完成",
+        photos: [],
+      });
+    });
+  }
+
+  async function handleEscalate() {
+    if (!id) return;
+    if (!reportNote.trim()) {
+      setActionError("請填寫無法處理的原因");
       return;
     }
     await runAction(async () => {
       const token = await getToken();
-      const photos = await filesToPhotoPayload(reportPhotos);
       await api.submitTicketReport(token, id, {
-        type: reportType,
-        note: reportNote,
-        photos,
+        type: "NEEDS_FRONT_DESK",
+        note: reportNote.trim(),
+        photos: [],
       });
     });
   }
@@ -310,7 +320,7 @@ export function TicketDetailPage() {
           )}
           {ticket.frontDeskNote && (
             <div className="sm:col-span-2">
-              <dt className="text-xs font-medium text-slate-500">前台協調備註</dt>
+              <dt className="text-xs font-medium text-slate-500">客務部協調備註</dt>
               <dd className="mt-1 text-sm text-slate-900">{ticket.frontDeskNote}</dd>
             </div>
           )}
@@ -414,86 +424,74 @@ export function TicketDetailPage() {
       )}
 
       {canDoEngineerActions && ticket.status === "IN_PROGRESS" && (
-        <form
-          onSubmit={(e) => void handleReport(e)}
-          className="mt-6 rounded-xl bg-white p-5 ring-1 ring-slate-200"
-        >
-          <h2 className="font-medium text-slate-900">現場回報（必填照片）</h2>
+        <div className="mt-6 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+          <h2 className="font-medium text-slate-900">現場回報</h2>
           <p className="mt-1 text-sm text-slate-500">
-            完工請上傳修復後照片；若需換房或無法處理，請選「需前台協助」
+            處理完成會直接通知客務部；若無法處理，請填寫原因後送出通知客務部。
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setReportType("COMPLETED")}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                reportType === "COMPLETED"
-                  ? "bg-emerald-600 text-white"
-                  : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              已處理完成
-            </button>
-            <button
-              type="button"
-              onClick={() => setReportType("NEEDS_FRONT_DESK")}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium ${
-                reportType === "NEEDS_FRONT_DESK"
-                  ? "bg-orange-600 text-white"
-                  : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              無法處理，需前台協助
-            </button>
-          </div>
-
-          <textarea
-            value={reportNote}
-            onChange={(e) => setReportNote(e.target.value)}
-            required
-            rows={3}
-            placeholder={
-              reportType === "COMPLETED"
-                ? "說明處理內容，例：已更換閥芯，測試正常"
-                : "說明原因，例：需換房，馬桶底座破裂無法當日修復"
-            }
-            className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            onChange={(e) => setReportPhotos(Array.from(e.target.files ?? []))}
-            className="mt-3 block w-full text-sm text-slate-600"
-          />
-          {reportPhotos.length > 0 && (
-            <p className="mt-1 text-xs text-slate-500">已選 {reportPhotos.length} 張照片</p>
+          {!escalating ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void handleComplete()}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {submitting ? "送出中…" : "處理完成"}
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => {
+                  setEscalating(true);
+                  setReportNote("");
+                  setActionError("");
+                }}
+                className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+              >
+                無法處理
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <textarea
+                value={reportNote}
+                onChange={(e) => setReportNote(e.target.value)}
+                rows={3}
+                autoFocus
+                placeholder="說明無法處理的原因，例：需換房，馬桶底座破裂無法當日修復"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void handleEscalate()}
+                  className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                >
+                  {submitting ? "送出中…" : "送出並通知客務部"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEscalating(false);
+                    setReportNote("");
+                    setActionError("");
+                  }}
+                  className="text-sm text-slate-500 hover:text-slate-900"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
           )}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className={`mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
-              reportType === "COMPLETED"
-                ? "bg-emerald-600 hover:bg-emerald-700"
-                : "bg-orange-600 hover:bg-orange-700"
-            }`}
-          >
-            {submitting
-              ? "送出中…"
-              : reportType === "COMPLETED"
-                ? "提交完工回報"
-                : "提交並通知前台"}
-          </button>
-        </form>
+        </div>
       )}
 
       {isFrontDesk && ticket.status === "PENDING_FRONT_DESK" && (
         <div className="mt-6 rounded-xl border border-orange-200 bg-orange-50 p-5">
-          <h2 className="font-medium text-orange-900">前台協調處理</h2>
+          <h2 className="font-medium text-orange-900">客務部協調處理</h2>
           <p className="mt-1 text-sm text-orange-800">
             工程師無法自行處理，請協助換房、通知客人或安排替代方案
           </p>

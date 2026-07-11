@@ -120,6 +120,15 @@ export const platformApi = {
     return request<{ tenants: Tenant[] }>(`/tenants${q}`, token);
   },
 
+  createTenant: (
+    token: string,
+    body: { name: string; slug: string; contactEmail?: string },
+  ) =>
+    request<{ tenant: Tenant }>("/tenants", token, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   getTenant: (token: string, id: string) =>
     request<{ tenant: Tenant }>(`/tenants/${id}`, token),
 

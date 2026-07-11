@@ -103,7 +103,7 @@ export function CreateRestaurantRequestModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">提醒前台通知客人</label>
+            <label className="mb-1 block text-sm font-medium">提醒客務部通知客人</label>
             <input
               type="datetime-local"
               value={reminderAt}

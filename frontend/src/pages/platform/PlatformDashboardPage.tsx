@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { CreateTenantModal } from "../../components/CreateTenantModal";
 import { PlanBadge, SubscriptionBadge } from "../../components/PlatformBadges";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { AlertBanner } from "../../components/ui/AlertBanner";
@@ -29,6 +30,7 @@ export function PlatformDashboardPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -234,6 +236,25 @@ export function PlatformDashboardPage() {
           </table>
         </div>
       )}
+
+      {/* 右下角浮動按鈕：建立新飯店 */}
+      <button
+        type="button"
+        onClick={() => setCreateOpen(true)}
+        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-violet-600 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-violet-600/30 transition hover:bg-violet-700 active:scale-[0.98]"
+      >
+        <span className="text-lg leading-none">＋</span>
+        建立新飯店
+      </button>
+
+      <CreateTenantModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => {
+          setCreateOpen(false);
+          void load();
+        }}
+      />
     </div>
   );
 }

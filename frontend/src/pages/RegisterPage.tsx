@@ -112,7 +112,7 @@ export function RegisterPage() {
         </p>
         {hotelSession && !profile && (
           <Link
-            to="/register/complete"
+            to="/home"
             className="mt-2 block text-center text-sm text-indigo-600 hover:underline"
           >
             已完成 LINE 登入？繼續填寫飯店資料 →

@@ -5,7 +5,7 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
   OPEN: "待派單",
   ASSIGNED: "已指派",
   IN_PROGRESS: "進行中",
-  PENDING_FRONT_DESK: "待前台協助",
+  PENDING_FRONT_DESK: "待客務部協助",
   COMPLETED: "已完工",
   CLOSED: "已結案",
   CANCELLED: "已取消",
@@ -80,7 +80,7 @@ export function StaleBadge({ durationLabel }: { durationLabel: string }) {
 
 export const ROLE_LABELS: Record<string, string> = {
   ADMIN: "管理員",
-  FRONT_DESK: "前台",
+  FRONT_DESK: "客務部",
   HOUSEKEEPING: "房務",
   ENGINEER: "工程師",
   FOOD_BEVERAGE: "餐飲部",
