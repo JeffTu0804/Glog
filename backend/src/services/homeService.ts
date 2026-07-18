@@ -15,6 +15,7 @@ import {
 } from "../utils/department.js";
 import { withTenantScope } from "../utils/tenantScope.js";
 import { listGuestRequestsForTenant } from "./guestRequestService.js";
+import { listActiveMemos, type HotelNoticeDto } from "./hotelNoticeService.js";
 import {
   getLatestPublishedLogbook,
   getOrCreateCurrentLogbook,
@@ -28,6 +29,10 @@ export interface HomeTodoItem {
   subtitle: string;
   href: string;
   createdAt: string;
+  /** 房號（供前端放大顯示） */
+  roomNumber?: string | null;
+  /** 待處理 | 進行中 */
+  todoStatus?: "pending" | "in_progress";
 }
 
 export interface HandoverAckItem {
@@ -72,10 +77,12 @@ async function collectTodos(
     todos.push({
       id: `guest-${req.id}`,
       kind: "guest_request",
-      title: `${req.room_number} 號房 · ${req.request_label}`,
-      subtitle: `客人請求 · ${req.status === "processing" ? "處理中" : "待處理"}`,
+      title: req.request_label,
+      subtitle: "客人請求",
       href: "/guest-requests",
       createdAt: req.created_at,
+      roomNumber: req.room_number,
+      todoStatus: req.status === "processing" ? "in_progress" : "pending",
     });
   }
 
@@ -97,9 +104,11 @@ async function collectTodos(
       id: `service-${req.id}`,
       kind: "service_request",
       title: req.title,
-      subtitle: `${req.guestRoom} 號房 · ${req.guestName}`,
+      subtitle: req.guestName,
       href: departmentHref(req.targetDepartment),
       createdAt: req.createdAt.toISOString(),
+      roomNumber: req.guestRoom,
+      todoStatus: "pending",
     });
   }
 
@@ -120,13 +129,18 @@ async function collectTodos(
     });
 
     for (const ticket of tickets) {
+      const inProgress =
+        ticket.status === TicketStatus.ASSIGNED ||
+        ticket.status === TicketStatus.IN_PROGRESS;
       todos.push({
         id: `ticket-${ticket.id}`,
         kind: "maintenance_ticket",
         title: ticket.title,
-        subtitle: `${ticket.asset.code} · 工程工單`,
+        subtitle: "工程工單",
         href: `/tickets/${ticket.id}`,
         createdAt: ticket.createdAt.toISOString(),
+        roomNumber: ticket.asset.code,
+        todoStatus: inProgress ? "in_progress" : "pending",
       });
     }
   }
@@ -147,10 +161,12 @@ async function collectTodos(
     todos.push({
       id: `service-active-${req.id}`,
       kind: "service_request",
-      title: `${req.title}（進行中）`,
-      subtitle: `${req.guestRoom} 號房 · 待完工`,
+      title: req.title,
+      subtitle: "待完工",
       href: departmentHref(req.targetDepartment),
       createdAt: req.acceptedAt!.toISOString(),
+      roomNumber: req.guestRoom,
+      todoStatus: "in_progress",
     });
   }
 
@@ -183,10 +199,11 @@ export async function getHomeData(
 ) {
   const department = roleToDepartment(role);
 
-  const [{ shift }, previousHandover, todos] = await Promise.all([
+  const [{ shift }, previousHandover, todos, activeMemos] = await Promise.all([
     getOrCreateCurrentLogbook(tenantId, userId, department),
     getLatestPublishedLogbook(tenantId, department),
     collectTodos(tenantId, role),
+    listActiveMemos(tenantId),
   ]);
 
   const handoverAcks = previousHandover
@@ -202,6 +219,7 @@ export async function getHomeData(
     todos,
     previousHandover,
     handoverAcks,
+    activeMemos: activeMemos as HotelNoticeDto[],
   };
 }
 

@@ -46,7 +46,7 @@ export async function cancelDepartmentAcceptReminders(params: {
       ...(params.serviceRequestId
         ? { serviceRequestId: params.serviceRequestId }
         : { maintenanceTicketId: params.maintenanceTicketId }),
-      status: ReminderStatus.SCHEDULED,
+      status: { in: [ReminderStatus.SCHEDULED, ReminderStatus.TRIGGERED] },
       title: { startsWith: DEPARTMENT_ACCEPT_REMINDER_TITLE },
     },
     data: { status: ReminderStatus.CANCELLED },
@@ -141,7 +141,7 @@ export async function processDueDepartmentAcceptReminders(): Promise<number> {
   return processed;
 }
 
-/** 新部門任務建立時推播該部門 */
+/** 新部門任務建立時推播：接受部門收「請接單」，送出部門收「已送出」確認（不含 ADMIN 廣播） */
 export async function notifyNewDepartmentTask(params: {
   tenantId: string;
   department: Department;
@@ -149,10 +149,11 @@ export async function notifyNewDepartmentTask(params: {
   title: string;
   description: string;
   triggeredByName: string;
+  sourceDepartment?: Department;
   acceptHint?: string;
 }): Promise<void> {
   const deptLabel = DEPARTMENT_LABELS[params.department];
-  const lines = [
+  const acceptLines = [
     `📋 新${deptLabel}任務`,
     `📍 ${params.roomNumber} 號房`,
     `📝 ${params.title}`,
@@ -160,14 +161,48 @@ export async function notifyNewDepartmentTask(params: {
   ];
 
   if (params.description.trim()) {
-    lines.push(`💬 ${params.description.trim().slice(0, 120)}`);
+    acceptLines.push(`💬 ${params.description.trim().slice(0, 120)}`);
   }
 
-  lines.push(
+  acceptLines.push(
     "",
     `請在 ${getDepartmentAcceptMinutes()} 分鐘內接單。`,
     params.acceptHint ?? "回覆「接單」即可認領此任務。",
   );
 
-  await pushToDepartmentStaff(params.tenantId, params.department, lines.join("\n"));
+  const acceptText = acceptLines.join("\n");
+  const toTarget = await pushToDepartmentStaff(
+    params.tenantId,
+    params.department,
+    acceptText,
+  );
+
+  // 送出部門（若與接受部門不同）只收確認，避免客務部也被要求「接單」
+  if (
+    params.sourceDepartment &&
+    params.sourceDepartment !== params.department
+  ) {
+    const sourceLabel = DEPARTMENT_LABELS[params.sourceDepartment];
+    const confirmText = [
+      `✅ 已送出${deptLabel}請求`,
+      `📍 ${params.roomNumber} 號房`,
+      `📝 ${params.title}`,
+      `👤 通報：${params.triggeredByName}`,
+      "",
+      `已通知${deptLabel}接單；完成後會再通知${sourceLabel}。`,
+    ].join("\n");
+
+    await pushToDepartmentStaff(
+      params.tenantId,
+      params.sourceDepartment,
+      confirmText,
+    );
+  }
+
+  if (toTarget.sent === 0) {
+    console.warn(
+      `[LINE] 新${deptLabel}任務推播未成功送達接受部門任何人（sent=0, skipped=${toTarget.skipped}）。` +
+        "請檢查 LINE_MESSAGING_ACCESS_TOKEN，以及該部門員工是否已用 LINE 登入並綁定。",
+    );
+  }
 }

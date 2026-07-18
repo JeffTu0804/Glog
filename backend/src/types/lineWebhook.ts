@@ -9,6 +9,7 @@ export interface LineWebhookEvent {
   source?: LineEventSource;
   replyToken?: string;
   timestamp?: number;
+  postback?: { data?: string };
 }
 
 export interface LineEventSource {

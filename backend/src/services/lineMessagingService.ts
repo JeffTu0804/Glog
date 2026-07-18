@@ -23,11 +23,20 @@ export interface HandoverPushPayload {
 }
 
 function getMessagingAccessToken(): string | null {
-  return (
+  const token =
     process.env.LINE_MESSAGING_ACCESS_TOKEN?.trim() ||
     process.env.LINE_CHANNEL_ACCESS_TOKEN?.trim() ||
-    null
-  );
+    null;
+  if (!token) return null;
+  // Messaging API Channel access token 通常為長字串；過短多半是誤貼 Channel Secret
+  if (token.length < 50) {
+    console.error(
+      `[LINE] Channel Access Token 長度異常（${token.length}），推播會失敗。` +
+        "請到 LINE Developers → Messaging API channel → Channel access token 重新發行長效 token，" +
+        "並寫入 backend/.env 的 LINE_MESSAGING_ACCESS_TOKEN（勿填 Channel Secret）。",
+    );
+  }
+  return token;
 }
 
 function buildHandoverMessage(payload: HandoverPushPayload): string {
@@ -67,8 +76,7 @@ function buildHandoverMessage(payload: HandoverPushPayload): string {
 async function pushLineMessage(lineUserId: string, text: string, tokenOverride?: string): Promise<void> {
   const token = tokenOverride?.trim() || getMessagingAccessToken();
   if (!token) {
-    console.warn("[LINE] 未設定 LINE_MESSAGING_ACCESS_TOKEN，略過推播");
-    return;
+    throw new Error("未設定 LINE_MESSAGING_ACCESS_TOKEN");
   }
 
   const res = await fetch("https://api.line.me/v2/bot/message/push", {
@@ -85,7 +93,7 @@ async function pushLineMessage(lineUserId: string, text: string, tokenOverride?:
 
   if (!res.ok) {
     const body = await res.text();
-    console.error(`[LINE] 推播失敗 (${lineUserId}): ${res.status} ${body}`);
+    throw new Error(`推播失敗 (${lineUserId}): ${res.status} ${body}`);
   }
 }
 
@@ -94,17 +102,26 @@ export async function pushToDepartmentStaff(
   department: Department,
   text: string,
   tokenOverride?: string,
+  options?: { includeAdmin?: boolean },
 ): Promise<{ sent: number; skipped: number }> {
   const token = tokenOverride?.trim() || getMessagingAccessToken();
-  if (!token) return { sent: 0, skipped: 0 };
+  if (!token) {
+    console.warn("[LINE] 未設定 LINE_MESSAGING_ACCESS_TOKEN，略過推播");
+    return { sent: 0, skipped: 0 };
+  }
 
   const deptRoles = rolesForDepartment(department);
+  // 預設只推該部門角色，避免 ADMIN 收到所有部門任務把聊天室洗亂
+  const roleWhere = options?.includeAdmin
+    ? { OR: [{ role: { in: deptRoles } }, { role: UserRole.ADMIN }] }
+    : { role: { in: deptRoles } };
+
   const recipients = await prisma.user.findMany({
     where: withTenantScope(tenantId, {
       lineUserId: { not: null },
-      OR: [{ role: { in: deptRoles } }, { role: UserRole.ADMIN }],
+      ...roleWhere,
     }),
-    select: { lineUserId: true },
+    select: { lineUserId: true, name: true, role: true },
   });
 
   const uniqueLineIds = [
@@ -113,7 +130,18 @@ export async function pushToDepartmentStaff(
     ),
   ];
 
-  if (uniqueLineIds.length === 0) return { sent: 0, skipped: 0 };
+  if (uniqueLineIds.length === 0) {
+    console.warn(
+      `[LINE] ${DEPARTMENT_LABELS[department]} 無人可推播：該部門員工尚未用 LINE 登入綁定（User.lineUserId 為空）。` +
+        "僅「加入好友」不夠，需以 LINE 登入 Glog 或完成 LIFF 綁定。",
+    );
+    return { sent: 0, skipped: 0 };
+  }
+
+  console.info(
+    `[LINE] 推播對象 ${DEPARTMENT_LABELS[department]}：` +
+      recipients.map((r) => `${r.name}(${r.role})`).join("、"),
+  );
 
   let sent = 0;
   let skipped = 0;
@@ -122,10 +150,15 @@ export async function pushToDepartmentStaff(
       try {
         await pushLineMessage(lineUserId, text, token);
         sent += 1;
-      } catch {
+      } catch (err) {
         skipped += 1;
+        console.error("[LINE]", err instanceof Error ? err.message : err);
       }
     }),
+  );
+
+  console.info(
+    `[LINE] 推播 ${DEPARTMENT_LABELS[department]}：成功 ${sent}、失敗 ${skipped}（收件 ${uniqueLineIds.length}）`,
   );
   return { sent, skipped };
 }
@@ -349,10 +382,7 @@ export async function notifyDepartmentHandover(
   const recipients = await prisma.user.findMany({
     where: withTenantScope(payload.tenantId, {
       lineUserId: { not: null },
-      OR: [
-        { role: { in: deptRoles } },
-        { role: UserRole.ADMIN },
-      ],
+      role: { in: deptRoles },
     }),
     select: { lineUserId: true },
   });

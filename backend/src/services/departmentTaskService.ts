@@ -98,6 +98,7 @@ export async function createDepartmentTaskFromLine(params: {
     title: params.title,
     description: params.description,
     triggeredByName: params.triggeredByName,
+    sourceDepartment: roleToDepartment(params.userRole),
   });
 
   await scheduleDepartmentAcceptReminder({
@@ -160,8 +161,8 @@ export async function completeServiceRequestById(
   userId: string,
   role: UserRole,
   requestId: string,
-  photoBuffer: Buffer,
-  mimeType: string,
+  photoBuffer: Buffer | null,
+  mimeType: string | null,
   note?: string,
 ) {
   const existing = await prisma.serviceRequest.findFirst({
@@ -180,13 +181,16 @@ export async function completeServiceRequestById(
     throw new AppError(403, "僅接單人可以結案此任務");
   }
 
+  const photoRequired = existing.targetDepartment !== Department.HOUSEKEEPING;
+  if (photoRequired && !photoBuffer) {
+    throw new AppError(400, "請上傳完成照片");
+  }
+
   const responseNote = note?.trim() || "已完成";
-  const photoUrl = await saveServiceRequestPhoto(
-    tenantId,
-    requestId,
-    photoBuffer,
-    mimeType,
-  );
+  const photoUrl =
+    photoBuffer && mimeType
+      ? await saveServiceRequestPhoto(tenantId, requestId, photoBuffer, mimeType)
+      : null;
 
   const updated = await prisma.$transaction(async (tx) => {
     const req = await tx.serviceRequest.update({
@@ -337,7 +341,9 @@ export async function completeDepartmentTaskForUser(params: {
   });
 
   if (inProgressRequest) {
-    if (!params.photoBuffer) {
+    const photoRequired =
+      inProgressRequest.targetDepartment !== Department.HOUSEKEEPING;
+    if (photoRequired && !params.photoBuffer) {
       throw new AppError(400, "請先傳送完成照片，再回覆「完成」");
     }
 
@@ -346,8 +352,8 @@ export async function completeDepartmentTaskForUser(params: {
       params.userId,
       params.role,
       inProgressRequest.id,
-      params.photoBuffer,
-      params.photoMimeType ?? "image/jpeg",
+      params.photoBuffer ?? null,
+      params.photoMimeType ?? null,
       note,
     );
 

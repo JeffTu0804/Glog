@@ -120,17 +120,18 @@ serviceRequestsRouter.post(
       photo?: { data?: unknown; mimeType?: unknown };
     };
 
-    if (!photo || typeof photo.data !== "string" || !photo.data.trim()) {
-      throw new AppError(400, "請上傳完成照片");
-    }
+    let photoBuffer: Buffer | null = null;
+    let mimeType: string | null = null;
 
-    const mimeType =
-      typeof photo.mimeType === "string" ? photo.mimeType : "image/jpeg";
-    const base64 = photo.data.replace(/^data:[^;]+;base64,/, "");
-    const buffer = Buffer.from(base64, "base64");
+    if (photo && typeof photo.data === "string" && photo.data.trim()) {
+      mimeType =
+        typeof photo.mimeType === "string" ? photo.mimeType : "image/jpeg";
+      const base64 = photo.data.replace(/^data:[^;]+;base64,/, "");
+      photoBuffer = Buffer.from(base64, "base64");
 
-    if (buffer.length === 0) {
-      throw new AppError(400, "照片格式無效");
+      if (photoBuffer.length === 0) {
+        throw new AppError(400, "照片格式無效");
+      }
     }
 
     await completeServiceRequestById(
@@ -138,7 +139,7 @@ serviceRequestsRouter.post(
       req.user!.id,
       req.user!.role,
       getParamId(req.params, "請求 ID"),
-      buffer,
+      photoBuffer,
       mimeType,
       typeof note === "string" ? note : undefined,
     );

@@ -291,9 +291,22 @@ async function handleMessageEvent(event: LineWebhookEvent): Promise<void> {
 export async function processLineWebhookEvents(events: LineWebhookEvent[]): Promise<void> {
   for (const event of events) {
     try {
-      if (event.type !== "message") continue;
       if (event.source?.type !== "user") continue;
 
+      // 跨部門工作流（follow / postback / 派工）優先，充分使用 replyToken 省 Push 成本
+      const { handleCrossDeptLineEvent } = await import(
+        "./crossDept/lineRoutingHandler.js"
+      );
+      const handled = await handleCrossDeptLineEvent({
+        type: event.type,
+        replyToken: event.replyToken,
+        source: event.source,
+        message: event.message,
+        postback: event.postback,
+      });
+      if (handled) continue;
+
+      if (event.type !== "message") continue;
       await handleMessageEvent(event);
     } catch (err) {
       console.error("[LINE Webhook] 單一 event 處理失敗", event.message?.id, err);

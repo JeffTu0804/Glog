@@ -146,6 +146,7 @@ export async function createServiceRequest(
       title: request.title,
       description: request.description ?? "",
       triggeredByName: creator?.name ?? "客務部",
+      sourceDepartment: request.sourceDepartment,
     });
 
     await scheduleDepartmentAcceptReminder({

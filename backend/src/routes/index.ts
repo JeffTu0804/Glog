@@ -11,6 +11,8 @@ import { inventoryRouter } from "./inventory.js";
 import { maintenanceTicketsRouter } from "./maintenance-tickets.js";
 import { meRouter } from "./me.js";
 import { usersRouter } from "./users.js";
+import { crossDeptRouter } from "./cross-dept.js";
+import { noticesRouter } from "./notices.js";
 
 export const apiRouter = Router();
 
@@ -28,3 +30,5 @@ apiRouter.use("/service-requests", serviceRequestsRouter);
 apiRouter.use("/reminders", remindersRouter);
 apiRouter.use("/guest-requests", guestRequestsRouter);
 apiRouter.use("/home", homeRouter);
+apiRouter.use("/cross-dept", crossDeptRouter);
+apiRouter.use("/notices", noticesRouter);

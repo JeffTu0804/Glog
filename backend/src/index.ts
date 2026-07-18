@@ -11,6 +11,7 @@ import { getUploadRoot } from "./lib/photoStorage.js";
 import { getServiceRequestUploadRoot } from "./lib/serviceRequestPhotoStorage.js";
 import { guestPublicRouter } from "./routes/guestPublic.js";
 import { lineWebhookRouter } from "./routes/lineWebhook.js";
+import { crossDeptPublicRouter } from "./routes/cross-dept.js";
 import { startAlertScheduler, stopAlertScheduler } from "./services/alertSchedulerService.js";
 import { prisma } from "./lib/prisma.js";
 
@@ -48,6 +49,9 @@ app.get("/health", (_req, res) => {
 
 // 住客掃碼 API（免登入）
 app.use("/api/guest", guestPublicRouter);
+
+// LIFF 身分綁定（免登入）
+app.use("/api/v1/cross-dept", crossDeptPublicRouter);
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/auth/line", lineAuthRouter);

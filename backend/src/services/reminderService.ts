@@ -21,6 +21,7 @@ const REMINDER_INCLUDE = {
       status: true,
       responseNote: true,
       targetDepartment: true,
+      handledBy: { select: { id: true, name: true } },
     },
   },
   maintenanceTicket: {
@@ -30,6 +31,7 @@ const REMINDER_INCLUDE = {
       status: true,
       resolutionNote: true,
       asset: { select: { code: true, name: true } },
+      assignedTo: { select: { id: true, name: true } },
     },
   },
   guestRequest: {
@@ -40,6 +42,7 @@ const REMINDER_INCLUDE = {
       targetDepartment: true,
       room: { select: { roomNumber: true } },
       hotel: { select: { name: true, lineOfficialToken: true } },
+      handledBy: { select: { id: true, name: true } },
     },
   },
 };
@@ -64,6 +67,7 @@ type ReminderRow = {
     status: string;
     responseNote: string | null;
     targetDepartment: string;
+    handledBy: { id: string; name: string } | null;
   } | null;
   maintenanceTicket: {
     id: string;
@@ -71,6 +75,7 @@ type ReminderRow = {
     status: string;
     resolutionNote: string | null;
     asset: { code: string; name: string };
+    assignedTo: { id: string; name: string } | null;
   } | null;
   guestRequest: {
     id: string;
@@ -79,6 +84,7 @@ type ReminderRow = {
     targetDepartment: string;
     room: { roomNumber: string };
     hotel: { name: string; lineOfficialToken: string | null };
+    handledBy: { id: string; name: string } | null;
   } | null;
 };
 
@@ -105,6 +111,7 @@ function serializeReminder(r: ReminderRow) {
           targetDepartment: r.guestRequest.targetDepartment,
           roomNumber: r.guestRequest.room.roomNumber,
           hotelName: r.guestRequest.hotel.name,
+          handledBy: r.guestRequest.handledBy,
         }
       : null,
   };

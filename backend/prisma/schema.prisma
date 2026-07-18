@@ -230,6 +230,7 @@ model Tenant {
   serviceRequests    ServiceRequest[]
   reminders          Reminder[]
   ticketAttachments  TicketAttachment[]
+  hotelNotices       HotelNotice[]
   hotel              Hotel?
 }
 
@@ -263,6 +264,7 @@ model User {
   ticketAttachments      TicketAttachment[] @relation("TicketAttachmentUploadedBy")
   guestRequestsHandled GuestRequest[]     @relation("GuestRequestHandledBy")
   handoverAcks         ShiftHandoverAck[] @relation("HandoverAckCompletedBy")
+  hotelNoticesCreated  HotelNotice[]      @relation("HotelNoticeCreatedBy")
 
   @@unique([tenantId, email]) /// 同一租戶內 email 不可重複
   @@index([tenantId])
@@ -581,6 +583,81 @@ model Room {
   @@unique([hotelId, roomNumber])
   @@index([hotelId])
   @@map("rooms")
+}
+
+/// LINE Bot 身分綁定員工（跨部門工單路由）
+model Employee {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lineUserId String   @unique @map("line_user_id")
+  hotelId    String   @map("hotel_id")
+  name       String
+  department String   /// front_desk | housekeeping | engineering | purchasing | spa
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  ticketsCreated CrossDepartmentTicket[] @relation("TicketCreatedByEmployee")
+  ticketsHandled CrossDepartmentTicket[] @relation("TicketHandledByEmployee")
+
+  @@index([hotelId])
+  @@index([hotelId, department])
+  @@map("employees")
+}
+
+/// 跨部門任務工單（LINE Flex / Postback + Realtime 看板）
+model CrossDepartmentTicket {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hotelId              String    @map("hotel_id")
+  caseNumber           String?   @map("case_number")
+  fromDepartment       String    @map("from_department")
+  toDepartment         String    @map("to_department")
+  createdByEmployeeId  String    @map("created_by_employee_id") @db.Uuid
+  handledByEmployeeId  String?   @map("handled_by_employee_id") @db.Uuid
+  description          String
+  status               String    @default("pending") /// pending | processing | completed | delayed
+  delayReason          String?   @map("delay_reason")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy Employee  @relation("TicketCreatedByEmployee", fields: [createdByEmployeeId], references: [id])
+  handledBy Employee? @relation("TicketHandledByEmployee", fields: [handledByEmployeeId], references: [id])
+
+  @@unique([hotelId, caseNumber])
+  @@index([hotelId, status])
+  @@index([hotelId, createdAt(sort: Desc)])
+  @@index([hotelId, toDepartment, status])
+  @@map("tickets")
+}
+
+/// 每飯店每日工單流水號（DB trigger 原子遞增）
+model DailySequence {
+  hotelId      String @map("hotel_id")
+  date         DateTime @db.Date
+  currentValue Int    @default(0) @map("current_value")
+
+  @@id([hotelId, date])
+  @@map("daily_sequences")
+}
+
+/// 館內事件／公告（全域「新增事件」：TASK 任務 or MEMO 知會照會）
+model HotelNotice {
+  id               String      @id @default(cuid())
+  tenantId         String      @map("tenant_id")
+  type             String      /// TASK | MEMO
+  status           String      @default("UNREAD") /// MEMO: UNREAD | READ；TASK: UNREAD（進行中）| READ（已結）
+  title            String
+  content          String?     @db.Text
+  expiresAt        DateTime?   @map("expires_at") @db.Timestamptz(6) /// null = 無限期至手動下架
+  targetDepartment String?     @map("target_department") /// Department enum 字串
+  guestRoom        String?     @map("guest_room")
+  createdById      String      @map("created_by_id")
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("HotelNoticeCreatedBy", fields: [createdById], references: [id])
+
+  @@index([tenantId, type, status])
+  @@index([tenantId, expiresAt])
+  @@map("hotel_notices")
 }
 
 /// 住客服務請求
