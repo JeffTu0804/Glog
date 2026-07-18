@@ -223,6 +223,7 @@ export interface Reminder {
     status: ServiceRequestStatus;
     responseNote: string | null;
     targetDepartment: Department;
+    handledBy?: { id: string; name: string } | null;
   } | null;
   maintenanceTicket: {
     id: string;
@@ -230,6 +231,7 @@ export interface Reminder {
     status: string;
     resolutionNote: string | null;
     asset: { code: string; name: string };
+    assignedTo?: { id: string; name: string } | null;
   } | null;
   guestRequest: {
     id: string;
@@ -238,6 +240,7 @@ export interface Reminder {
     targetDepartment: Department;
     roomNumber: string;
     hotelName: string;
+    handledBy?: { id: string; name: string } | null;
   } | null;
 }
 
@@ -324,6 +327,24 @@ export interface HomeTodoItem {
   subtitle: string;
   href: string;
   createdAt: string;
+  roomNumber?: string | null;
+  todoStatus?: "pending" | "in_progress";
+}
+
+export type HotelNoticeType = "TASK" | "MEMO";
+export type HotelNoticeStatus = "UNREAD" | "READ";
+
+export interface HotelNotice {
+  id: string;
+  type: HotelNoticeType;
+  status: HotelNoticeStatus;
+  title: string;
+  content: string | null;
+  expiresAt: string | null;
+  targetDepartment: Department | null;
+  guestRoom: string | null;
+  createdAt: string;
+  createdBy: { id: string; name: string };
 }
 
 export interface HomeResponse {
@@ -332,4 +353,5 @@ export interface HomeResponse {
   todos: HomeTodoItem[];
   previousHandover: ShiftLogbook | null;
   handoverAcks: HandoverAckItem[];
+  activeMemos?: HotelNotice[];
 }

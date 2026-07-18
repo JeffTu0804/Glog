@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { ActiveMemoCards } from "../components/ActiveMemoCards";
 import { AlertBanner } from "../components/ui/AlertBanner";
 import { LogbookNoteForm } from "../components/LogbookNoteForm";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -10,7 +11,12 @@ import {
   DEPARTMENT_LABELS,
   roleToDepartment,
 } from "../lib/department";
-import type { Department, LogbookCurrentResponse, ShiftLogbook } from "../types/api";
+import type {
+  Department,
+  HotelNotice,
+  LogbookCurrentResponse,
+  ShiftLogbook,
+} from "../types/api";
 
 export function LogbookPage() {
   const { getToken, profile } = useAuth();
@@ -20,6 +26,7 @@ export function LogbookPage() {
   const [department, setDepartment] = useState<Department>(defaultDepartment);
   const [data, setData] = useState<LogbookCurrentResponse | null>(null);
   const [history, setHistory] = useState<ShiftLogbook[]>([]);
+  const [activeMemos, setActiveMemos] = useState<HotelNotice[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -37,12 +44,14 @@ export function LogbookPage() {
     setError("");
     try {
       const token = await getToken();
-      const [current, list] = await Promise.all([
+      const [current, list, memosRes] = await Promise.all([
         api.getLogbookCurrent(token, dept),
         api.listLogbooks(token, dept),
+        api.getActiveMemos(token),
       ]);
       setData(current);
       setHistory(list.logbooks.filter((l) => l.status === "PUBLISHED"));
+      setActiveMemos(memosRes.memos);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入失敗");
     } finally {
@@ -154,6 +163,35 @@ export function LogbookPage() {
           </p>
         </div>
       )}
+
+      <section className="glog-card p-5">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              目前館內異常／進行中公告
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500">
+              自動帶入未過期的知會照會，免打字即可交班
+            </p>
+          </div>
+          {activeMemos.length > 0 && (
+            <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
+              {activeMemos.length} 則
+            </span>
+          )}
+        </div>
+        {activeMemos.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-4 py-6 text-center text-sm text-slate-500">
+            目前沒有進行中的館內公告
+          </p>
+        ) : (
+          <ActiveMemoCards
+            memos={activeMemos}
+            compact
+            onDismissed={() => void load(department)}
+          />
+        )}
+      </section>
 
       {data?.previousHandover && selectedId === null && (
         <section className="glog-card p-6">

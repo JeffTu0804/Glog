@@ -7,7 +7,7 @@ import { FilterChip } from "../../components/ui/FilterChip";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
-import { filesToPhotoPayload } from "../../lib/photoUpload";
+import { fileToOptionalPhotoPayload } from "../../lib/photoUpload";
 import { isDepartmentTask } from "../../lib/serviceRequest";
 import type { ServiceRequest, UserRole } from "../../types/api";
 
@@ -74,18 +74,14 @@ export function HousekeepingDepartmentPage() {
   }
 
   async function handleComplete(id: string) {
-    if (!completePhotos?.length) {
-      setError("請上傳完成照片");
-      return;
-    }
     setSubmitting(true);
     setError("");
     try {
       const token = await getToken();
-      const photos = await filesToPhotoPayload(completePhotos);
+      const photo = await fileToOptionalPhotoPayload(completePhotos);
       await api.completeServiceRequest(token, id, {
         note: completeNote.trim() || "已完成",
-        photo: photos[0]!,
+        ...(photo ? { photo } : {}),
       });
       setHandlingId(null);
       setCompleteNote("");
@@ -109,7 +105,7 @@ export function HousekeepingDepartmentPage() {
     <div>
       <PageHeader
         title="房務部"
-        subtitle="備品補送、清潔請求 — 接單後上傳照片結案，5 分鐘內須有人接單"
+        subtitle="備品補送、清潔請求 — 接單後可選填完成照片結案，5 分鐘內須有人接單"
         accent="emerald"
         action={
           canCreate ? (
@@ -154,6 +150,7 @@ export function HousekeepingDepartmentPage() {
               view={view}
               profileId={profile?.id}
               canHandle={!!canHandle}
+              photoOptional
               handlingId={handlingId}
               submitting={submitting}
               completeNote={completeNote}

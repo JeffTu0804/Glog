@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ROLE_LABELS } from "./TicketBadges";
 import { uploadUrl } from "../lib/photoUpload";
 import { DEPARTMENT_LABELS, REQUEST_STATUS_LABELS } from "../lib/serviceRequest";
@@ -10,6 +11,7 @@ export function DepartmentTaskCard({
   view,
   profileId,
   canHandle,
+  photoOptional = false,
   handlingId,
   submitting,
   completeNote,
@@ -23,6 +25,7 @@ export function DepartmentTaskCard({
   view: TaskView;
   profileId?: string;
   canHandle: boolean;
+  photoOptional?: boolean;
   handlingId: string | null;
   submitting: boolean;
   completeNote: string;
@@ -32,6 +35,7 @@ export function DepartmentTaskCard({
   onAccept: () => void;
   onComplete: () => void;
 }) {
+  const [selectedPhotoName, setSelectedPhotoName] = useState("");
   const isMine = req.handledBy?.id === profileId;
   const statusColors = {
     PENDING: "bg-amber-100 text-amber-800",
@@ -40,6 +44,10 @@ export function DepartmentTaskCard({
     CANCELLED: "bg-slate-100 text-slate-600",
     COMPLETED: "bg-emerald-100 text-emerald-800",
   };
+
+  useEffect(() => {
+    if (handlingId !== req.id) setSelectedPhotoName("");
+  }, [handlingId, req.id]);
 
   return (
     <article
@@ -135,7 +143,8 @@ export function DepartmentTaskCard({
             接單
           </button>
           <p className="mt-2 text-xs text-slate-500">
-            接單後請至「進行中」上傳照片結案（{DEPARTMENT_LABELS[req.targetDepartment]}）
+            接單後請至「進行中」{photoOptional ? "完成結案" : "上傳照片結案"}（
+            {DEPARTMENT_LABELS[req.targetDepartment]}）
           </p>
         </div>
       )}
@@ -145,14 +154,28 @@ export function DepartmentTaskCard({
           {handlingId === req.id ? (
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-sm font-medium">完成照片（必填）</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => onCompletePhotosChange(e.target.files)}
-                  className="w-full text-sm"
-                />
+                <label className="mb-1 block text-sm font-medium">
+                  完成照片（{photoOptional ? "選填" : "必填"}）
+                </label>
+                <label className="flex cursor-pointer flex-wrap items-center gap-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/60 px-4 py-3 transition hover:border-emerald-300 hover:bg-emerald-50">
+                  <span className="inline-flex shrink-0 items-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
+                    選擇照片
+                  </span>
+                  <span className="text-sm text-slate-600">
+                    {selectedPhotoName || "未選擇任何檔案"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      setSelectedPhotoName(file?.name ?? "");
+                      onCompletePhotosChange(e.target.files);
+                    }}
+                    className="sr-only"
+                  />
+                </label>
               </div>
               <textarea
                 value={completeNote}
@@ -176,6 +199,7 @@ export function DepartmentTaskCard({
                     onSetHandlingId(null);
                     onCompleteNoteChange("");
                     onCompletePhotosChange(null);
+                    setSelectedPhotoName("");
                   }}
                   className="text-sm text-slate-500"
                 >
@@ -189,7 +213,7 @@ export function DepartmentTaskCard({
               onClick={() => onSetHandlingId(req.id)}
               className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
             >
-              上傳照片並結案
+              {photoOptional ? "完成結案" : "上傳照片並結案"}
             </button>
           )}
         </div>

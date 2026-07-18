@@ -304,7 +304,7 @@ export const api = {
   completeServiceRequest: (
     token: string,
     id: string,
-    body: { note?: string; photo: { data: string; mimeType: string } },
+    body: { note?: string; photo?: { data: string; mimeType: string } | null },
   ) =>
     request<{ request: ServiceRequest; message: string }>(
       `/service-requests/${id}/complete`,
@@ -384,6 +384,97 @@ export const api = {
       "/guest-requests/hotel/line-token",
       token,
       { method: "PATCH", body: JSON.stringify({ lineOfficialToken }) },
+    ),
+
+  getCrossDeptTickets: (
+    token: string,
+    params?: {
+      hotelId?: string;
+      status?: "all" | "pending" | "in_progress" | "processing" | "completed" | "delayed" | "active";
+      department?: string;
+      q?: string;
+    } | string,
+  ) => {
+    // 相容舊呼叫：getCrossDeptTickets(token, hotelIdString)
+    const opts =
+      typeof params === "string" ? { hotelId: params } : (params ?? {});
+    const search = new URLSearchParams();
+    if (opts.hotelId) search.set("hotelId", opts.hotelId);
+    if (opts.status) search.set("status", opts.status);
+    if (opts.department) search.set("department", opts.department);
+    if (opts.q) search.set("q", opts.q);
+    const query = search.toString() ? `?${search.toString()}` : "";
+    return request<{
+      hotelId: string;
+      tickets: Array<{
+        id: string;
+        hotelId: string;
+        caseNumber?: string | null;
+        fromDepartment: string;
+        toDepartment: string;
+        createdByEmployeeId: string;
+        handledByEmployeeId: string | null;
+        description: string;
+        status: string;
+        delayReason: string | null;
+        createdAt: string;
+        updatedAt: string;
+        createdBy?: { id: string; name: string; department: string };
+        handledBy?: { id: string; name: string; department: string } | null;
+      }>;
+    }>(`/cross-dept/tickets${query}`, token);
+  },
+
+  createCrossDeptTicket: (
+    token: string,
+    body: { toDepartment: string; description: string; lineUserId?: string },
+  ) =>
+    request<{ ticketId: string; pushedTo: number }>("/cross-dept/tickets", token, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  getActiveMemos: (token: string) =>
+    request<{ memos: import("../types/api").HotelNotice[] }>(
+      "/notices/active-memos",
+      token,
+    ),
+
+  getNotices: (
+    token: string,
+    params?: { type?: "TASK" | "MEMO"; activeOnly?: boolean },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.type) search.set("type", params.type);
+    if (params?.activeOnly) search.set("activeOnly", "1");
+    const q = search.toString() ? `?${search.toString()}` : "";
+    return request<{ notices: import("../types/api").HotelNotice[] }>(
+      `/notices${q}`,
+      token,
+    );
+  },
+
+  createNotice: (
+    token: string,
+    body: {
+      type: "TASK" | "MEMO";
+      title: string;
+      content?: string;
+      expiresAt?: string | null;
+      targetDepartment?: string;
+      guestRoom?: string;
+    },
+  ) =>
+    request<{ notice: import("../types/api").HotelNotice }>("/notices", token, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  markNoticeRead: (token: string, id: string) =>
+    request<{ notice: import("../types/api").HotelNotice }>(
+      `/notices/${id}/read`,
+      token,
+      { method: "POST" },
     ),
 };
 

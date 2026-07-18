@@ -6,6 +6,14 @@ export function uploadUrl(path: string) {
   return `${API_BASE}${path}`;
 }
 
+export async function fileToOptionalPhotoPayload(
+  files: FileList | null | undefined,
+): Promise<{ data: string; mimeType: string } | null> {
+  if (!files?.length) return null;
+  const photos = await filesToPhotoPayload(files);
+  return photos[0] ?? null;
+}
+
 export async function filesToPhotoPayload(files: FileList | File[]) {
   const list = Array.from(files);
   const photos: Array<{ data: string; mimeType: string }> = [];

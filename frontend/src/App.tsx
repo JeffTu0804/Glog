@@ -22,6 +22,8 @@ import {
 } from "./pages/PasswordRecoveryPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { TicketDetailPage } from "./pages/TicketDetailPage";
+import { TicketHistoryPage } from "./pages/TicketHistoryPage";
+import { LiffBindPage } from "./pages/liff/LiffBindPage";
 import { EngineeringDepartmentPage } from "./pages/departments/EngineeringDepartmentPage";
 import { FoodBeverageDepartmentPage } from "./pages/departments/FoodBeverageDepartmentPage";
 import { HousekeepingDepartmentPage } from "./pages/departments/HousekeepingDepartmentPage";
@@ -93,6 +95,7 @@ export default function App() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/guest" element={<GuestScanPage />} />
+      <Route path="/liff/bind" element={<LiffBindPage />} />
 
       <Route
         element={
@@ -103,6 +106,7 @@ export default function App() {
       >
         <Route index element={<HomeRedirect />} />
         <Route path="home" element={<HomePage />} />
+        <Route path="cross-dept" element={<Navigate to="/home" replace />} />
         <Route path="front-office" element={<FrontOfficeDepartmentPage />} />
         <Route path="engineering" element={<EngineeringDepartmentPage />} />
         <Route path="food-beverage" element={<FoodBeverageDepartmentPage />} />
@@ -115,6 +119,7 @@ export default function App() {
         <Route path="tickets" element={<Navigate to="/engineering" replace />} />
         <Route path="service-requests" element={<Navigate to="/housekeeping" replace />} />
         <Route path="logbook" element={<LogbookPage />} />
+        <Route path="ticket-history" element={<TicketHistoryPage />} />
         <Route path="assets" element={<AssetsPage />} />
         <Route
           path="qr-rooms"
