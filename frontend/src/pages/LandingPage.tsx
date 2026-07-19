@@ -13,7 +13,7 @@ export function LandingPage() {
   }
 
   if (hotelSession) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to="/chat" replace />;
   }
   if (managerSession && isPlatformAdmin) {
     return <Navigate to="/manager" replace />;

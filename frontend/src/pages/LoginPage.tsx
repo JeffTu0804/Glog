@@ -43,8 +43,8 @@ function LoginPageContent({
     return <Navigate to="/manager" replace />;
   }
   if (!loading && target === "hotel" && hotelSession) {
-    // 已加入者進後台、未加入者由 OnboardingGuard 在 /home 攔截問卷
-    return <Navigate to="/home" replace />;
+    // 已加入者進中控台、未加入者由 OnboardingGuard 攔截問卷
+    return <Navigate to="/chat" replace />;
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -73,7 +73,7 @@ function LoginPageContent({
         setError("你的 Manager 權限申請已被拒絕，請聯絡現有管理員。");
       } else if (msg.includes("尚未在系統中註冊")) {
         setError("帳號已通過驗證，但尚未加入飯店，請先完成設定");
-        navigate("/home");
+        navigate("/chat");
       } else {
         setError(msg);
       }

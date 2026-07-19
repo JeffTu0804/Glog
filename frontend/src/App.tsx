@@ -24,6 +24,8 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { TicketDetailPage } from "./pages/TicketDetailPage";
 import { TicketHistoryPage } from "./pages/TicketHistoryPage";
 import { LiffBindPage } from "./pages/liff/LiffBindPage";
+import { LiffReportPage } from "./pages/liff/LiffReportPage";
+import { ChatHubPage } from "./pages/ChatHubPage";
 import { EngineeringDepartmentPage } from "./pages/departments/EngineeringDepartmentPage";
 import { FoodBeverageDepartmentPage } from "./pages/departments/FoodBeverageDepartmentPage";
 import { HousekeepingDepartmentPage } from "./pages/departments/HousekeepingDepartmentPage";
@@ -78,7 +80,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function HomeRedirect() {
-  return <Navigate to="/home" replace />;
+  return <Navigate to="/chat" replace />;
 }
 
 export default function App() {
@@ -96,6 +98,7 @@ export default function App() {
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/guest" element={<GuestScanPage />} />
       <Route path="/liff/bind" element={<LiffBindPage />} />
+      <Route path="/liff/report" element={<LiffReportPage />} />
 
       <Route
         element={
@@ -106,6 +109,7 @@ export default function App() {
       >
         <Route index element={<HomeRedirect />} />
         <Route path="home" element={<HomePage />} />
+        <Route path="chat" element={<ChatHubPage />} />
         <Route path="cross-dept" element={<Navigate to="/home" replace />} />
         <Route path="front-office" element={<FrontOfficeDepartmentPage />} />
         <Route path="engineering" element={<EngineeringDepartmentPage />} />

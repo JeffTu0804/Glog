@@ -476,6 +476,67 @@ export const api = {
       token,
       { method: "POST" },
     ),
+
+  getChatThreads: (token: string) =>
+    request<{
+      hotelName: string;
+      threads: Array<{
+        staff: {
+          id: string;
+          name: string;
+          role: UserRole;
+          status: "IDLE" | "BUSY";
+          lineUserId: string | null;
+        };
+        lastMessage: {
+          content: string;
+          createdAt: string;
+          sender: string;
+          ticketId: string | null;
+        } | null;
+        unreadCount: number;
+      }>;
+    }>("/chat/threads", token),
+
+  getChatMessages: (token: string, staffUserId: string) =>
+    request<{
+      messages: Array<{
+        id: string;
+        sender: "staff" | "manager" | "system";
+        messageType: string;
+        content: string;
+        ticketId: string | null;
+        ticketKind: string | null;
+        createdAt: string;
+      }>;
+    }>(`/chat/threads/${staffUserId}/messages`, token),
+
+  getChatTickets: (token: string, staffUserId: string) =>
+    request<{
+      tickets: Array<{
+        id: string;
+        kind: string;
+        title: string;
+        description: string | null;
+        guestRoom: string;
+        status: "PENDING" | "IN_PROGRESS";
+        urgency: string;
+        acceptedAt: string | null;
+        createdAt: string;
+        department: Department;
+        createdByName: string;
+      }>;
+    }>(`/chat/threads/${staffUserId}/tickets`, token),
+
+  sendChatMessage: (
+    token: string,
+    staffUserId: string,
+    body: { content: string; ticketId?: string; ticketKind?: string },
+  ) =>
+    request<{ ok: boolean }>(`/chat/threads/${staffUserId}/messages`, token, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };
 
 export { ApiError };

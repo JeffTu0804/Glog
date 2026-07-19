@@ -50,8 +50,8 @@ export function AuthCallbackPage() {
         if (status.registered) {
           await refreshProfile();
         }
-        // 未加入飯店者也導向 /home，由 OnboardingGuard 攔截彈出首次登入問卷
-        navigate("/home", { replace: true });
+        // 未加入飯店者也導向中控台，由 OnboardingGuard 攔截彈出首次登入問卷
+        navigate("/chat", { replace: true });
       } catch (err) {
         setError(err instanceof Error ? err.message : "登入處理失敗");
       }
