@@ -60,6 +60,8 @@ export interface CreateTicketOptions {
   assigneeUserId?: string;
   /** 僅通知部門、不自動派單（LINE 部門接單流程） */
   departmentOnly?: boolean;
+  /** 略過文字推播（改由 HotelNotice Flex 推播時使用） */
+  skipLineNotify?: boolean;
 }
 
 export interface ListTicketsQuery {
@@ -239,6 +241,7 @@ export async function createTicket(
     autoDispatched: result.autoDispatched,
     assigneeName: result.ticket.assignedTo?.name,
     departmentOnly: options?.departmentOnly ?? false,
+    skipLineNotify: options?.skipLineNotify ?? false,
   });
 
   return result;

@@ -101,15 +101,28 @@ export async function handleCrossDeptLineEvent(
     return false; // 交回既有 orchestrator（可能走 User.lineUserId 流程）
   }
 
-  // --- LINE 關鍵字：接單 / 結案 ---
-  if (text === LINE_ACCEPT_KEYWORD) {
+  // --- LINE 關鍵字：接單 / 結案（跨部門）；若無單則交回 User/ServiceRequest 流程 ---
+  const isAcceptText =
+    text === LINE_ACCEPT_KEYWORD || text.startsWith("我已按鈕接單");
+  const isCompleteText =
+    isLineCompleteKeyword(text) ||
+    text.includes("申請結單") ||
+    text.includes("此任務已處理完畢");
+
+  if (isAcceptText) {
     const message = await acceptCrossDeptTicketByLineUser(lineUserId);
+    if (/沒有|找不到|尚無/.test(message)) {
+      return false;
+    }
     await replyWithToken(event.replyToken, [{ type: "text", text: message }]);
     return true;
   }
 
-  if (isLineCompleteKeyword(text)) {
+  if (isCompleteText) {
     const message = await completeCrossDeptTicketByLineUser(lineUserId);
+    if (/沒有|找不到|尚無|無法/.test(message)) {
+      return false;
+    }
     await replyWithToken(event.replyToken, [{ type: "text", text: message }]);
     return true;
   }

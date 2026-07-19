@@ -48,9 +48,17 @@ export async function createDepartmentTaskFromLine(params: {
   category: "維修" | "清潔" | "客務";
   title: string;
   description: string;
+  /** 略過文字推播（改由 HotelNotice Flex 推播時使用） */
+  skipLineNotify?: boolean;
 }): Promise<string> {
   const department = resolveTaskDepartment(params.category, params.description);
-  const room = params.roomNumber.trim() || "—";
+  // 「403號房」→「403」，避免 UI 出現「403號房 號房」
+  const room =
+    params.roomNumber
+      .trim()
+      .replace(/號房$/u, "")
+      .replace(/^房/u, "")
+      .trim() || "—";
 
   if (department === Department.ENGINEERING) {
     const asset = await findRoomAssetByNumber(params.tenantId, room);
@@ -67,10 +75,31 @@ export async function createDepartmentTaskFromLine(params: {
         description: params.description,
         priority: TicketPriority.MEDIUM,
       },
-      { departmentOnly: true },
+      {
+        departmentOnly: true,
+        skipLineNotify: params.skipLineNotify,
+      },
     );
 
     return `工程任務：${result.ticket.title}（已通知工程部，請回覆「接單」）`;
+  }
+
+  // 短時間內同房同標題的 PENDING 視為重複（避免 LIFF/推播連點建兩筆）
+  const since = new Date(Date.now() - 10 * 60 * 1000);
+  const duplicate = await prisma.serviceRequest.findFirst({
+    where: withTenantScope(params.tenantId, {
+      targetDepartment: department,
+      status: ServiceRequestStatus.PENDING,
+      guestRoom: room,
+      title: params.title,
+      createdAt: { gte: since },
+    }),
+    orderBy: { createdAt: "desc" },
+  });
+  if (duplicate) {
+    const deptLabel =
+      department === Department.HOUSEKEEPING ? "房務部" : "客務部";
+    return `${deptLabel}任務：${params.title}（已存在相同待處理案件）`;
   }
 
   const scheduledAt = new Date();
@@ -91,15 +120,18 @@ export async function createDepartmentTaskFromLine(params: {
     },
   });
 
-  await notifyNewDepartmentTask({
-    tenantId: params.tenantId,
-    department,
-    roomNumber: room,
-    title: params.title,
-    description: params.description,
-    triggeredByName: params.triggeredByName,
-    sourceDepartment: roleToDepartment(params.userRole),
-  });
+  if (!params.skipLineNotify) {
+    await notifyNewDepartmentTask({
+      tenantId: params.tenantId,
+      department,
+      roomNumber: room,
+      title: params.title,
+      description: params.description,
+      triggeredByName: params.triggeredByName,
+      sourceDepartment: roleToDepartment(params.userRole),
+      serviceRequestId: request.id,
+    });
+  }
 
   await scheduleDepartmentAcceptReminder({
     tenantId: params.tenantId,

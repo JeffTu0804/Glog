@@ -13,6 +13,7 @@ import { meRouter } from "./me.js";
 import { usersRouter } from "./users.js";
 import { crossDeptRouter } from "./cross-dept.js";
 import { noticesRouter } from "./notices.js";
+import { chatRouter } from "./chat.js";
 
 export const apiRouter = Router();
 
@@ -32,3 +33,4 @@ apiRouter.use("/guest-requests", guestRequestsRouter);
 apiRouter.use("/home", homeRouter);
 apiRouter.use("/cross-dept", crossDeptRouter);
 apiRouter.use("/notices", noticesRouter);
+apiRouter.use("/chat", chatRouter);

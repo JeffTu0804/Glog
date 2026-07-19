@@ -151,31 +151,49 @@ export async function notifyNewDepartmentTask(params: {
   triggeredByName: string;
   sourceDepartment?: Department;
   acceptHint?: string;
+  /** 有 ID 時推「文字 + 可點接單 Flex」；否則退回純文字 */
+  serviceRequestId?: string;
 }): Promise<void> {
   const deptLabel = DEPARTMENT_LABELS[params.department];
-  const acceptLines = [
-    `📋 新${deptLabel}任務`,
-    `📍 ${params.roomNumber} 號房`,
-    `📝 ${params.title}`,
-    `👤 通報：${params.triggeredByName}`,
-  ];
 
-  if (params.description.trim()) {
-    acceptLines.push(`💬 ${params.description.trim().slice(0, 120)}`);
+  let targetSent = 0;
+  if (params.serviceRequestId) {
+    // 動態 import，避免與 hotelNoticeFlexService 循環依賴
+    const { pushDepartmentTaskCard } = await import(
+      "./hotelNoticeFlexService.js"
+    );
+    const card = await pushDepartmentTaskCard({
+      tenantId: params.tenantId,
+      department: params.department,
+      serviceRequestId: params.serviceRequestId,
+      roomNumber: params.roomNumber,
+      title: params.title,
+      description: params.description,
+      creatorName: params.triggeredByName,
+    });
+    targetSent = card.sent;
+  } else {
+    const acceptLines = [
+      `📋 新${deptLabel}任務`,
+      `📍 ${params.roomNumber} 號房`,
+      `📝 ${params.title}`,
+      `👤 通報：${params.triggeredByName}`,
+    ];
+    if (params.description.trim()) {
+      acceptLines.push(`💬 ${params.description.trim().slice(0, 120)}`);
+    }
+    acceptLines.push(
+      "",
+      `請在 ${getDepartmentAcceptMinutes()} 分鐘內接單。`,
+      params.acceptHint ?? "回覆「接單」即可認領此任務。",
+    );
+    const toTarget = await pushToDepartmentStaff(
+      params.tenantId,
+      params.department,
+      acceptLines.join("\n"),
+    );
+    targetSent = toTarget.sent;
   }
-
-  acceptLines.push(
-    "",
-    `請在 ${getDepartmentAcceptMinutes()} 分鐘內接單。`,
-    params.acceptHint ?? "回覆「接單」即可認領此任務。",
-  );
-
-  const acceptText = acceptLines.join("\n");
-  const toTarget = await pushToDepartmentStaff(
-    params.tenantId,
-    params.department,
-    acceptText,
-  );
 
   // 送出部門（若與接受部門不同）只收確認，避免客務部也被要求「接單」
   if (
@@ -199,9 +217,9 @@ export async function notifyNewDepartmentTask(params: {
     );
   }
 
-  if (toTarget.sent === 0) {
+  if (targetSent === 0) {
     console.warn(
-      `[LINE] 新${deptLabel}任務推播未成功送達接受部門任何人（sent=0, skipped=${toTarget.skipped}）。` +
+      `[LINE] 新${deptLabel}任務推播未成功送達接受部門任何人。` +
         "請檢查 LINE_MESSAGING_ACCESS_TOKEN，以及該部門員工是否已用 LINE 登入並綁定。",
     );
   }

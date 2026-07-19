@@ -12,6 +12,7 @@ import { getServiceRequestUploadRoot } from "./lib/serviceRequestPhotoStorage.js
 import { guestPublicRouter } from "./routes/guestPublic.js";
 import { lineWebhookRouter } from "./routes/lineWebhook.js";
 import { crossDeptPublicRouter } from "./routes/cross-dept.js";
+import { liffPublicRouter } from "./routes/liff.js";
 import { startAlertScheduler, stopAlertScheduler } from "./services/alertSchedulerService.js";
 import { prisma } from "./lib/prisma.js";
 
@@ -52,6 +53,9 @@ app.use("/api/guest", guestPublicRouter);
 
 // LIFF 身分綁定（免登入）
 app.use("/api/v1/cross-dept", crossDeptPublicRouter);
+
+// LIFF 行動通報（免登入，依 lineUserId 辨識）
+app.use("/api/v1/liff", liffPublicRouter);
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/auth/line", lineAuthRouter);

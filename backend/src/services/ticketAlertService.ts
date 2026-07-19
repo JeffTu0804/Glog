@@ -30,22 +30,25 @@ interface TicketNotifyContext {
   autoDispatched: boolean;
   assigneeName?: string | null;
   departmentOnly?: boolean;
+  skipLineNotify?: boolean;
 }
 
 /** 新工單建立後：LINE 推播工程部 + 排程逾時升級 */
 export async function handleMaintenanceTicketCreated(ctx: TicketNotifyContext): Promise<void> {
-  void notifyTicketCreated({
-    tenantId: ctx.tenantId,
-    ticketId: ctx.ticket.id,
-    title: ctx.ticket.title,
-    description: ctx.ticket.description,
-    priority: ctx.ticket.priority,
-    assetCode: ctx.ticket.asset.code,
-    assetName: ctx.ticket.asset.name,
-    triggeredByName: ctx.triggeredByName,
-    autoDispatched: ctx.autoDispatched,
-    assigneeName: ctx.assigneeName,
-  });
+  if (!ctx.skipLineNotify) {
+    void notifyTicketCreated({
+      tenantId: ctx.tenantId,
+      ticketId: ctx.ticket.id,
+      title: ctx.ticket.title,
+      description: ctx.ticket.description,
+      priority: ctx.ticket.priority,
+      assetCode: ctx.ticket.asset.code,
+      assetName: ctx.ticket.asset.name,
+      triggeredByName: ctx.triggeredByName,
+      autoDispatched: ctx.autoDispatched,
+      assigneeName: ctx.assigneeName,
+    });
+  }
 
   if (ctx.autoDispatched) return;
 

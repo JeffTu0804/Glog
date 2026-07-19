@@ -121,6 +121,7 @@ export async function createNotice(params: {
         category,
         title,
         description: params.content?.trim() || title,
+        skipLineNotify: true, // 改由下方 Flex 推播，避免重複文字通知
       });
     } catch (err) {
       throw new AppError(
@@ -153,6 +154,27 @@ export async function createNotice(params: {
     },
     include: { createdBy: { select: { id: true, name: true } } },
   });
+
+  // 動態 import 避免與 hotelNoticeFlexService 循環依賴
+  void import("./hotelNoticeFlexService.js")
+    .then(({ pushNewNoticeNotification }) =>
+      pushNewNoticeNotification({
+        tenantId: params.tenantId,
+        notice: {
+          id: notice.id,
+          type: notice.type,
+          title: notice.title,
+          content: notice.content,
+          guestRoom: notice.guestRoom,
+          targetDepartment: notice.targetDepartment,
+          status: notice.status,
+        },
+        creatorUserId: params.userId,
+        creatorName: params.userName,
+        creatorRole: params.userRole,
+      }),
+    )
+    .catch((err) => console.error("[LINE] 新通報 Flex 推播失敗", err));
 
   return serialize(notice);
 }

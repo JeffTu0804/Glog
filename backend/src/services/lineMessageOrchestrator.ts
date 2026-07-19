@@ -15,13 +15,23 @@ import {
 import { DEPARTMENT_LABELS, roleToDepartment } from "../utils/department.js";
 import { parseRoutingDepartmentSlugs } from "../utils/routingDecision.js";
 import type { RoutingDecision } from "../types/lineWebhook.js";
+import {
+  handleHotelNoticePostback,
+  replyTodayTasksFlex,
+} from "./hotelNoticeFlexService.js";
 import { replyToLineUser } from "./lineMessagingService.js";
 import { resolveStaffByLineUserId } from "./lineUserResolver.js";
 import { transcribeAudio } from "./speechToTextService.js";
 
 const ACCEPT_PATTERN = /^接單(\s|$)/;
+/** Flex「立即接單」按鈕的 displayText，也視為接單 */
+const ACCEPT_DISPLAY_PATTERN = /^我已按鈕接單/;
 const COMPLETE_PATTERN = /^完成(\s|$)/;
+/** Flex「完工結單」按鈕的 displayText，也視為結案 */
+const COMPLETE_DISPLAY_PATTERN =
+  /申請結單|此任務已處理完畢|^完工結單$|^此單已完成$|^已結束$/;
 const PUBLISH_PATTERN = /^交班(\s|$)/;
+const TODAY_TASKS_PATTERN = /^查看今日任務$/;
 
 async function extractTextFromEvent(event: LineWebhookEvent): Promise<string | null> {
   const message = event.message;
@@ -122,8 +132,13 @@ async function handleTextCommand(
   text: string,
   lineUserId: string,
   staff: NonNullable<Awaited<ReturnType<typeof resolveStaffByLineUserId>>>,
+  replyToken?: string,
 ): Promise<boolean> {
-  if (ACCEPT_PATTERN.test(text)) {
+  if (TODAY_TASKS_PATTERN.test(text)) {
+    return replyTodayTasksFlex({ lineUserId, replyToken });
+  }
+
+  if (ACCEPT_PATTERN.test(text) || ACCEPT_DISPLAY_PATTERN.test(text)) {
     const msg = await acceptDepartmentTaskForUser({
       tenantId: staff.tenantId,
       userId: staff.user.id,
@@ -134,9 +149,11 @@ async function handleTextCommand(
     return true;
   }
 
-  if (COMPLETE_PATTERN.test(text)) {
+  if (COMPLETE_PATTERN.test(text) || COMPLETE_DISPLAY_PATTERN.test(text)) {
     const photo = takePendingCompletionPhoto(lineUserId);
-    const note = text.replace(COMPLETE_PATTERN, "").trim() || "已完成";
+    const note = COMPLETE_PATTERN.test(text)
+      ? text.replace(COMPLETE_PATTERN, "").trim() || "已完成"
+      : "已完成";
 
     try {
       const msg = await completeDepartmentTaskForUser({
@@ -153,6 +170,36 @@ async function handleTextCommand(
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "結案失敗";
+      // 尚未接單就結單：先接單再結案（房務常見）
+      if (
+        message.includes("請先回覆「接單」") ||
+        message.includes("找不到您進行中的任務")
+      ) {
+        try {
+          await acceptDepartmentTaskForUser({
+            tenantId: staff.tenantId,
+            userId: staff.user.id,
+            role: staff.user.role,
+            lineUserId,
+          });
+          const msg2 = await completeDepartmentTaskForUser({
+            tenantId: staff.tenantId,
+            userId: staff.user.id,
+            role: staff.user.role,
+            lineUserId,
+            photoBuffer: photo?.buffer,
+            photoMimeType: photo?.mimeType,
+            note,
+          });
+          await replyToLineUser(lineUserId, msg2);
+        } catch (err2) {
+          await replyToLineUser(
+            lineUserId,
+            err2 instanceof Error ? err2.message : "結案失敗",
+          );
+        }
+        return true;
+      }
       await replyToLineUser(lineUserId, message);
     }
     return true;
@@ -239,7 +286,8 @@ async function handleMessageEvent(event: LineWebhookEvent): Promise<void> {
     return;
   }
 
-  if (await handleTextCommand(sourceText, lineUserId, staff)) return;
+  if (await handleTextCommand(sourceText, lineUserId, staff, event.replyToken))
+    return;
 
   const sourceDepartment = roleToDepartment(staff.user.role);
   const parsed = await parseLineMessageSemantics(sourceText, sourceDepartment);
@@ -297,6 +345,16 @@ export async function processLineWebhookEvents(events: LineWebhookEvent[]): Prom
       const { handleCrossDeptLineEvent } = await import(
         "./crossDept/lineRoutingHandler.js"
       );
+      // 先處理營運 Flex postback（service_request_id / notice_id），避免被跨部門邏輯吞掉
+      if (event.type === "postback" && event.postback?.data) {
+        const noticeHandled = await handleHotelNoticePostback({
+          lineUserId: event.source.userId!,
+          postbackData: event.postback.data,
+          replyToken: event.replyToken,
+        });
+        if (noticeHandled) continue;
+      }
+
       const handled = await handleCrossDeptLineEvent({
         type: event.type,
         replyToken: event.replyToken,

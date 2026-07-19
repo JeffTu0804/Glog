@@ -231,6 +231,7 @@ model Tenant {
   reminders          Reminder[]
   ticketAttachments  TicketAttachment[]
   hotelNotices       HotelNotice[]
+  chatMessages       ChatMessage[]
   hotel              Hotel?
 }
 
@@ -265,6 +266,7 @@ model User {
   guestRequestsHandled GuestRequest[]     @relation("GuestRequestHandledBy")
   handoverAcks         ShiftHandoverAck[] @relation("HandoverAckCompletedBy")
   hotelNoticesCreated  HotelNotice[]      @relation("HotelNoticeCreatedBy")
+  chatMessages         ChatMessage[]      @relation("ChatMessageStaff")
 
   @@unique([tenantId, email]) /// 同一租戶內 email 不可重複
   @@index([tenantId])
@@ -658,6 +660,34 @@ model HotelNotice {
   @@index([tenantId, type, status])
   @@index([tenantId, expiresAt])
   @@map("hotel_notices")
+}
+
+/// LINE／中控台對話訊息（與營運工單深度綁定）
+model ChatMessage {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  /// 對話所屬員工（接收推播或發 Postback 者）
+  staffUserId String?  @map("staff_user_id")
+  lineUserId  String?  @map("line_user_id")
+  /// staff | manager | system
+  sender      String
+  /// TEXT | FLEX | POSTBACK
+  messageType String   @map("message_type")
+  content     String   @db.Text
+  /// 營運工單錨點（多為 ServiceRequest.id；亦可為 HotelNotice / MaintenanceTicket id）
+  ticketId    String?  @map("ticket_id")
+  /// SERVICE_REQUEST | NOTICE | MAINTENANCE | CROSS_DEPT
+  ticketKind  String?  @map("ticket_kind")
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  User?  @relation("ChatMessageStaff", fields: [staffUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, staffUserId, createdAt])
+  @@index([tenantId, ticketId])
+  @@index([tenantId, lineUserId])
+  @@map("chat_messages")
 }
 
 /// 住客服務請求
