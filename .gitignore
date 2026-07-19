@@ -1,7 +1,35 @@
+# Dependencies
 node_modules/
-dist/
-.env
-frontend/.env
-*.log
-frontend/dist/
+backend/node_modules/
 frontend/node_modules/
+
+# Build output
+backend/dist/
+frontend/dist/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+supabase/.env
+supabase/.env.*
+
+# Supabase CLI local cache (not source)
+supabase/.temp/
+supabase/.branches/
+
+# Editor / local tooling
+.cursor/
+.vscode/
+
+# Logs
+*.log
+
+# Uploaded ticket photos
+backend/uploads/

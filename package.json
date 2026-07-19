@@ -1,42 +1,20 @@
 {
   "name": "glog",
   "version": "1.0.0",
-  "description": "Hotel Back-of-House ERP — 飯店後勤微型 SaaS",
-  "main": "dist/index.js",
+  "private": true,
+  "description": "Hotel Back-of-House ERP — monorepo root",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "npm run dev:backend",
+    "dev:backend": "npm run dev --prefix backend",
     "dev:frontend": "npm run dev --prefix frontend",
-    "build": "tsc",
+    "build": "npm run build --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
-    "start": "node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "start": "npm run start --prefix backend",
+    "prisma:generate": "npm run prisma:generate --prefix backend",
+    "prisma:migrate": "npm run prisma:migrate --prefix backend",
+    "prisma:studio": "npm run prisma:studio --prefix backend",
+    "db:seed": "npm run db:seed --prefix backend",
+    "install:all": "npm install --prefix backend && npm install --prefix frontend"
   },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  },
-  "keywords": [
-    "hotel",
-    "erp",
-    "maintenance",
-    "saas"
-  ],
-  "license": "UNLICENSED",
-  "dependencies": {
-    "@prisma/client": "^6.9.0",
-    "@supabase/supabase-js": "^2.108.2",
-    "cors": "^2.8.6",
-    "dotenv": "^16.5.0",
-    "express": "^4.21.2"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@types/express": "^4.17.21",
-    "@types/node": "^22.15.21",
-    "prisma": "^6.9.0",
-    "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
-  }
+  "license": "UNLICENSED"
 }
