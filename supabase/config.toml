@@ -1,0 +1,9 @@
+# Minimal Supabase config for Edge Functions deploy
+project_id = "glog"
+
+[api]
+enabled = true
+
+[functions.line-webhook]
+verify_jwt = false
+import_map = "./functions/deno.json"
