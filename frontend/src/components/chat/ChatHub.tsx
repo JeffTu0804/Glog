@@ -506,7 +506,7 @@ export function ChatHub({
             }
 
             return (
-              <article
+              <div
                 key={ticket.id}
                 ref={(el) => {
                   ticketRefs.current[ticket.id] = el;
@@ -575,7 +575,7 @@ export function ChatHub({
                     指派他人
                   </button>
                 </div>
-              </article>
+              </div>
             );
           })}
         </div>
