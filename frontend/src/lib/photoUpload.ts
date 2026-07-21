@@ -1,4 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "";
 
 /** 將後端回傳的相對路徑轉為可顯示的完整 URL */
 export function uploadUrl(path: string) {

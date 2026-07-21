@@ -22,7 +22,8 @@ export const DEPARTMENT_LABELS: Record<Department, string> = {
   MANAGEMENT: "管理層",
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "";
 
 export async function fetchGuestRoomInfo(qrToken: string) {
   const res = await fetch(

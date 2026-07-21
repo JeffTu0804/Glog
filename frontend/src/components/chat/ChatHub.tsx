@@ -178,7 +178,7 @@ export function ChatHub({
   const [sending, setSending] = useState(false);
 
   /** 右側工單卡片 DOM，供錨點聯動滾動 */
-  const ticketRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const ticketRefs = useRef<{ [key: string]: HTMLElement | null }>({});
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const filteredThreads = useMemo(() => {

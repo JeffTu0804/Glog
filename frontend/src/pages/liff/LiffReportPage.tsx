@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Department } from "../../types/api";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "";
 const LIFF_ID = import.meta.env.VITE_LIFF_ID as string | undefined;
 
 const DEPARTMENTS: { id: Department; label: string }[] = [
