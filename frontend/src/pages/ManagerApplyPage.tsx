@@ -7,7 +7,7 @@ import {
 } from "../components/ManagerAuthLayout";
 import { useAuth } from "../context/AuthContext";
 import { platformApi } from "../lib/platformApi";
-import { managerSupabase } from "../lib/supabase";
+import { getApiBase } from "../lib/session";
 
 const AUTO_REQUEST_KEY = "glog-manager-apply-auto";
 const PENDING_NAME_KEY = "glog-manager-apply-name";
@@ -128,39 +128,36 @@ export function ManagerApplyPage() {
     setSuccess("");
     setSubmitting(true);
     try {
-      const { data, error: signUpError } = await managerSupabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: name },
-        },
+      const signupRes = await fetch(`${getApiBase()}/api/v1/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          password,
+          name: name.trim(),
+          asManagerApplicant: true,
+        }),
       });
-      if (signUpError) throw signUpError;
-      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-        throw new Error("此 Email 已經註冊過，請直接登入後送出 Manager 申請，或改用其他 Email");
+      const signupBody = (await signupRes.json().catch(() => ({}))) as {
+        token?: string;
+        account?: { id: string; email: string; name: string };
+        error?: string;
+        message?: string;
+      };
+      if (!signupRes.ok) {
+        throw new Error(signupBody.error || signupBody.message || "申請失敗");
       }
-
-      if (!data.user?.id || !data.user.email) {
+      if (!signupBody.account) {
         throw new Error("建立帳號成功，但暫時拿不到使用者資料，請稍後再試");
       }
 
       const result = await platformApi.requestManagerAccessAfterSignup({
-        supabaseUserId: data.user.id,
-        email: data.user.email,
+        accountId: signupBody.account.id,
+        email: signupBody.account.email,
         name: name.trim(),
       });
 
-      if (data.session?.access_token) {
-        setSuccess(result.message);
-      } else {
-        if (typeof window !== "undefined") {
-          window.localStorage.removeItem(AUTO_REQUEST_KEY);
-          window.localStorage.removeItem(PENDING_NAME_KEY);
-        }
-        setSuccess(
-          `${result.message} 驗證信也已寄出；請完成 Email 驗證，之後管理者核准後即可登入 Manager。`,
-        );
-      }
+      setSuccess(result.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "申請失敗");
     } finally {

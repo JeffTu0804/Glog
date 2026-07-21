@@ -1,13 +1,16 @@
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
-import { getSupabase } from "../lib/supabase.js";
+import { verifyAuthToken } from "../lib/jwt.js";
+import {
+  findAuthAccountById,
+  resolveHotelUserIds,
+} from "../services/mongoAuthService.js";
 import { syncLineUserId } from "../services/lineMessagingService.js";
 import { roleToDepartment } from "../utils/department.js";
 
 /**
- * 驗證 Supabase JWT，並從 Prisma User 表載入 tenantId 與 role。
- * 成功後將使用者資訊掛載至 req.user，供後續路由與多租戶過濾使用。
+ * 驗證 Mongo Auth JWT，並從 Prisma User 表載入 tenantId 與 role。
  */
 export async function authenticate(
   req: Request,
@@ -22,33 +25,51 @@ export async function authenticate(
     }
 
     const token = authHeader.slice("Bearer ".length);
-
-    const { data, error } = await getSupabase().auth.getUser(token);
-
-    if (error || !data.user) {
+    const payload = verifyAuthToken(token);
+    const account = await findAuthAccountById(payload.sub);
+    if (!account) {
       throw new AppError(401, "無效或已過期的 token");
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { supabaseUserId: data.user.id },
+    const candidateIds = await resolveHotelUserIds(account);
+    let dbUser = await prisma.user.findFirst({
+      where: { supabaseUserId: { in: candidateIds } },
     });
+
+    if (!dbUser && account.lineUserId) {
+      dbUser = await prisma.user.findFirst({
+        where: { lineUserId: account.lineUserId },
+      });
+    }
+
+    if (!dbUser && account.email && !account.email.endsWith("@line.oauth.local")) {
+      dbUser = await prisma.user.findFirst({
+        where: { email: account.email.toLowerCase() },
+      });
+    }
 
     if (!dbUser) {
       throw new AppError(403, "使用者尚未在系統中註冊，請聯繫管理員");
     }
 
-    const lineSub =
-      typeof data.user.user_metadata?.line_sub === "string"
-        ? data.user.user_metadata.line_sub
-        : undefined;
-    if (lineSub) {
-      void syncLineUserId(data.user.id, lineSub);
+    // 把舊帳號的 supabaseUserId 對齊到 Mongo Auth id，之後查詢更穩
+    if (dbUser.supabaseUserId !== String(account._id)) {
+      await prisma.user
+        .update({
+          where: { id: dbUser.id },
+          data: { supabaseUserId: String(account._id) },
+        })
+        .catch(() => undefined);
+    }
+
+    if (account.lineUserId) {
+      void syncLineUserId(String(account._id), account.lineUserId);
     }
 
     req.user = {
       id: dbUser.id,
       tenantId: dbUser.tenantId,
-      supabaseUserId: dbUser.supabaseUserId,
+      supabaseUserId: String(account._id),
       role: dbUser.role,
       email: dbUser.email,
       name: dbUser.name,

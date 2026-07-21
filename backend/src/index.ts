@@ -15,6 +15,7 @@ import { crossDeptPublicRouter } from "./routes/cross-dept.js";
 import { liffPublicRouter } from "./routes/liff.js";
 import { startAlertScheduler, stopAlertScheduler } from "./services/alertSchedulerService.js";
 import { prisma } from "./lib/prisma.js";
+import { connectMongo, disconnectMongo } from "./lib/mongo.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -66,6 +67,12 @@ app.use(errorHandler);
 
 const server = app.listen(PORT, () => {
   console.log(`glog API server running on http://localhost:${PORT}`);
+  console.log(
+    `[DB] 主資料庫: MongoDB Atlas | Supabase Postgres: 已凍結 | Supabase Auth: 仍用於登入`,
+  );
+  void connectMongo().catch((err) => {
+    console.error("[MongoDB] 連線失敗:", err instanceof Error ? err.message : err);
+  });
   startAlertScheduler();
 });
 
@@ -92,10 +99,12 @@ function shutdown(signal: string) {
   }
 
   server.close(() => {
-    void prisma.$disconnect().finally(() => {
-      clearTimeout(forceExit);
-      process.exit(0);
-    });
+    void Promise.allSettled([prisma.$disconnect(), disconnectMongo()]).finally(
+      () => {
+        clearTimeout(forceExit);
+        process.exit(0);
+      },
+    );
   });
 }
 

@@ -3,37 +3,28 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { checkAuthStatus } from "../lib/auth";
 import { platformApi } from "../lib/platformApi";
-import { consumeAuthHashSession, getSupabaseClient } from "../lib/supabase";
 
 /**
  * LINE / OAuth 登入回調。
- * 建立 session 後，飯店端一律導向 /home，未加入飯店者由 OnboardingGuard
- * 強制彈出首次登入問卷；平台端則導向 /manager。
+ * 接收後端導回的 access_token（Mongo JWT）。
  */
 export function AuthCallbackPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { refreshProfile } = useAuth();
+  const { refreshProfile, setSessionFromToken } = useAuth();
   const [error, setError] = useState("");
 
   useEffect(() => {
     void (async () => {
       try {
         const target = searchParams.get("target") === "platform" ? "platform" : "hotel";
-        const client = getSupabaseClient(target);
-
-        let session = await consumeAuthHashSession(client);
-        if (!session) {
-          const { data, error: sessionError } = await client.auth.getSession();
-          if (sessionError) throw sessionError;
-          session = data.session;
-        }
-
-        const token = session?.access_token;
+        const token = searchParams.get("access_token");
         if (!token) {
           setError("登入失敗，請重試");
           return;
         }
+
+        await setSessionFromToken(target, token);
 
         if (target === "platform") {
           try {
@@ -50,13 +41,12 @@ export function AuthCallbackPage() {
         if (status.registered) {
           await refreshProfile();
         }
-        // 未加入飯店者也導向中控台，由 OnboardingGuard 攔截彈出首次登入問卷
         navigate("/chat", { replace: true });
       } catch (err) {
         setError(err instanceof Error ? err.message : "登入處理失敗");
       }
     })();
-  }, [navigate, refreshProfile, searchParams]);
+  }, [navigate, refreshProfile, searchParams, setSessionFromToken]);
 
   if (error) {
     return (

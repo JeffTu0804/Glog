@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { AppError } from "../../errors/AppError.js";
 import { prisma } from "../../lib/prisma.js";
-import { getSupabaseAdmin } from "../../lib/supabaseAdmin.js";
 import { authenticatePlatformAdmin } from "../../middleware/platformAuth.js";
 import { authenticateSupabase } from "../../middleware/supabaseAuth.js";
 import {
@@ -15,23 +14,6 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { getParamId, parseOptionalString, parseRequiredString } from "../../utils/validators.js";
 
 export const platformAccessRequestRouter = Router();
-
-async function getRecentlyCreatedSupabaseUser(userId: string) {
-  const admin = getSupabaseAdmin();
-
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const { data, error } = await admin.auth.admin.getUserById(userId);
-    if (!error && data.user) {
-      return data.user;
-    }
-
-    if (attempt < 4) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    }
-  }
-
-  return null;
-}
 
 function renderEmailActionResultPage(input: {
   title: string;
@@ -78,21 +60,26 @@ platformAccessRequestRouter.post(
   "/signup",
   asyncHandler(async (req, res) => {
     const body = req.body as Record<string, unknown>;
-    const supabaseUserId = parseRequiredString(body.supabaseUserId, "supabaseUserId");
+    const accountId = parseRequiredString(
+      body.accountId ?? body.supabaseUserId,
+      "accountId",
+    );
     const email = parseRequiredString(body.email, "email").toLowerCase();
     const name = parseOptionalString(body.name, "name");
 
-    const user = await getRecentlyCreatedSupabaseUser(supabaseUserId);
-    if (!user) {
-      throw new AppError(404, "找不到剛建立的使用者；此 Email 可能已註冊，請改用其他 Email 或直接登入");
+    const { findAuthAccountById } = await import(
+      "../../services/mongoAuthService.js"
+    );
+    const account = await findAuthAccountById(accountId);
+    if (!account) {
+      throw new AppError(404, "找不到剛建立的使用者；請改用其他 Email 或直接登入");
     }
-
-    if ((user.email ?? "").toLowerCase() !== email) {
+    if (account.email.toLowerCase() !== email) {
       throw new AppError(400, "申請資料與剛建立的帳號不一致");
     }
 
     const result = await requestManagerAccess({
-      supabaseUserId,
+      supabaseUserId: String(account._id),
       email,
       name,
     });

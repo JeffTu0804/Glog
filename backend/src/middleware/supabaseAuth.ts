@@ -1,11 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../errors/AppError.js";
-import { getSupabase } from "../lib/supabase.js";
+import { verifyAuthToken } from "../lib/jwt.js";
+import { findAuthAccountById } from "../services/mongoAuthService.js";
 
 export interface SupabaseAuthUser {
   id: string;
   email: string;
   lineSub?: string;
+  name?: string;
 }
 
 declare global {
@@ -17,8 +19,7 @@ declare global {
 }
 
 /**
- * 僅驗證 Supabase JWT，不要求 Prisma User 存在。
- * 用於註冊、OAuth 完成資料等流程。
+ * 驗證 Mongo Auth JWT（介面沿用 supabaseAuth，避免大量路由改名）。
  */
 export async function authenticateSupabase(
   req: Request,
@@ -33,19 +34,17 @@ export async function authenticateSupabase(
     }
 
     const token = authHeader.slice("Bearer ".length);
-    const { data, error } = await getSupabase().auth.getUser(token);
-
-    if (error || !data.user) {
+    const payload = verifyAuthToken(token);
+    const account = await findAuthAccountById(payload.sub);
+    if (!account) {
       throw new AppError(401, "無效或已過期的 token");
     }
 
     req.supabaseAuth = {
-      id: data.user.id,
-      email: data.user.email ?? "",
-      lineSub:
-        typeof data.user.user_metadata?.line_sub === "string"
-          ? data.user.user_metadata.line_sub
-          : undefined,
+      id: String(account._id),
+      email: account.email,
+      lineSub: account.lineUserId ?? undefined,
+      name: account.name || undefined,
     };
 
     next();

@@ -131,6 +131,21 @@ export async function reviewManagerAccessRequest(input: {
     },
   });
 
+  // 同步 Mongo AuthAccount
+  try {
+    const { connectMongo } = await import("../lib/mongo.js");
+    const { AuthAccount } = await import("../models/AuthAccount.js");
+    await connectMongo();
+    await AuthAccount.findByIdAndUpdate(input.userId, {
+      portalRole: input.decision === "approve" ? "manager" : "user",
+      managerAccessStatus: input.decision === "approve" ? "approved" : "rejected",
+      managerReviewedAt: new Date(),
+      managerReviewedBy: input.reviewerId,
+    });
+  } catch {
+    /* Prisma 仍為 Manager 審核來源之一；Mongo 同步失敗不阻斷 */
+  }
+
   return {
     ...updated,
     managerRequestedAt: updated.managerRequestedAt?.toISOString() ?? null,

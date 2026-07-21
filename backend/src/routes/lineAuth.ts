@@ -30,7 +30,7 @@ lineAuthRouter.get(
 
 /**
  * GET /api/v1/auth/line/callback
- * LINE OAuth 回調 → 建立/登入 Supabase 使用者 → 導回前端
+ * LINE OAuth 回調 → Mongo 帳號 + JWT → 導回前端
  */
 lineAuthRouter.get(
   "/callback",

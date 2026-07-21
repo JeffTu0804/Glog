@@ -68,7 +68,7 @@ async function publicRequest<T>(path: string, options: RequestInit = {}): Promis
 
 export const platformApi = {
   requestManagerAccessAfterSignup: (body: {
-    supabaseUserId: string;
+    accountId: string;
     email: string;
     name?: string;
   }) =>

@@ -7,10 +7,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Session } from "@supabase/supabase-js";
 import { api } from "../lib/api";
 import { platformApi } from "../lib/platformApi";
-import { getSupabaseClient, hotelSupabase, managerSupabase } from "../lib/supabase";
+import {
+  clearSession,
+  getApiBase,
+  readSession,
+  writeSession,
+  type AuthSession,
+} from "../lib/session";
 import type { User } from "../types/api";
 import type { PlatformAdmin } from "../types/platform";
 
@@ -18,8 +23,8 @@ import type { LoginTarget } from "../types/auth";
 export type { LoginTarget } from "../types/auth";
 
 interface AuthContextValue {
-  hotelSession: Session | null;
-  managerSession: Session | null;
+  hotelSession: AuthSession | null;
+  managerSession: AuthSession | null;
   profile: User | null;
   platformAdmin: PlatformAdmin | null;
   isPlatformAdmin: boolean;
@@ -28,6 +33,11 @@ interface AuthContextValue {
   logout: (target: LoginTarget) => Promise<void>;
   getToken: (target?: LoginTarget) => Promise<string>;
   refreshProfile: () => Promise<void>;
+  setSessionFromToken: (
+    target: LoginTarget,
+    token: string,
+    user?: AuthSession["user"],
+  ) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,9 +46,18 @@ function inferLoginTarget(pathname = window.location.pathname): LoginTarget {
   return pathname.startsWith("/manager") ? "platform" : "hotel";
 }
 
+async function parseApiError(res: Response): Promise<string> {
+  try {
+    const body = (await res.json()) as { error?: string; message?: string };
+    return body.error || body.message || `HTTP ${res.status}`;
+  } catch {
+    return `HTTP ${res.status}`;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [hotelSession, setHotelSession] = useState<Session | null>(null);
-  const [managerSession, setManagerSession] = useState<Session | null>(null);
+  const [hotelSession, setHotelSession] = useState<AuthSession | null>(null);
+  const [managerSession, setManagerSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
   const [platformAdmin, setPlatformAdmin] = useState<PlatformAdmin | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,92 +80,114 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const hydrate = useCallback(async () => {
+    const hotel = readSession("hotel");
+    const manager = readSession("platform");
+    setHotelSession(hotel);
+    setManagerSession(manager);
+
+    await Promise.all([
+      hotel
+        ? loadHotelIdentity(hotel.access_token)
+        : Promise.resolve(setProfile(null)),
+      manager
+        ? loadManagerIdentity(manager.access_token)
+        : Promise.resolve(setPlatformAdmin(null)),
+    ]);
+  }, [loadHotelIdentity, loadManagerIdentity]);
+
   useEffect(() => {
     let active = true;
-
-    async function init() {
-      const [hotelRes, managerRes] = await Promise.all([
-        hotelSupabase.auth.getSession(),
-        managerSupabase.auth.getSession(),
-      ]);
-
-      if (!active) return;
-
-      setHotelSession(hotelRes.data.session);
-      setManagerSession(managerRes.data.session);
-
-      await Promise.all([
-        hotelRes.data.session
-          ? loadHotelIdentity(hotelRes.data.session.access_token)
-          : Promise.resolve(setProfile(null)),
-        managerRes.data.session
-          ? loadManagerIdentity(managerRes.data.session.access_token)
-          : Promise.resolve(setPlatformAdmin(null)),
-      ]);
-
+    void (async () => {
+      await hydrate();
       if (active) setLoading(false);
-    }
+    })();
 
-    void init();
-
-    const { data: hotelSub } = hotelSupabase.auth.onAuthStateChange((_event, session) => {
-      setHotelSession(session);
-      if (session) {
-        void loadHotelIdentity(session.access_token);
-      } else {
-        setProfile(null);
-      }
-    });
-
-    const { data: managerSub } = managerSupabase.auth.onAuthStateChange((_event, session) => {
-      setManagerSession(session);
-      if (session) {
-        void loadManagerIdentity(session.access_token);
-      } else {
-        setPlatformAdmin(null);
-      }
-    });
-
+    const onChange = () => {
+      void hydrate();
+    };
+    window.addEventListener("glog-auth-change", onChange);
+    window.addEventListener("storage", onChange);
     return () => {
       active = false;
-      hotelSub.subscription.unsubscribe();
-      managerSub.subscription.unsubscribe();
+      window.removeEventListener("glog-auth-change", onChange);
+      window.removeEventListener("storage", onChange);
     };
-  }, [loadHotelIdentity, loadManagerIdentity]);
+  }, [hydrate]);
+
+  const setSessionFromToken = useCallback(
+    async (
+      target: LoginTarget,
+      token: string,
+      user?: AuthSession["user"],
+    ) => {
+      const session: AuthSession = {
+        access_token: token,
+        user: user ?? { id: "", email: "", name: "" },
+      };
+      writeSession(target, session);
+      if (target === "platform") {
+        setManagerSession(session);
+        await loadManagerIdentity(token);
+      } else {
+        setHotelSession(session);
+        await loadHotelIdentity(token);
+      }
+    },
+    [loadHotelIdentity, loadManagerIdentity],
+  );
 
   const login = useCallback(
     async (email: string, password: string, target: LoginTarget) => {
-      const client = getSupabaseClient(target);
-      const { data, error } = await client.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch(`${getApiBase()}/api/v1/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, target }),
       });
-      if (error) throw error;
-      if (!data.session) throw new Error("登入失敗");
+      if (!res.ok) throw new Error(await parseApiError(res));
+      const data = (await res.json()) as {
+        token: string;
+        account: { id: string; email: string; name: string };
+      };
+
+      await setSessionFromToken(target, data.token, {
+        id: data.account.id,
+        email: data.account.email,
+        name: data.account.name,
+      });
 
       if (target === "platform") {
         try {
-          await platformApi.getMe(data.session.access_token);
+          await platformApi.getMe(data.token);
         } catch (err) {
-          await client.auth.signOut();
+          clearSession(target);
+          setManagerSession(null);
+          setPlatformAdmin(null);
           throw err;
         }
       }
 
       return target;
     },
-    [],
+    [setSessionFromToken],
   );
 
   const logout = useCallback(async (target: LoginTarget) => {
-    await getSupabaseClient(target).auth.signOut();
+    clearSession(target);
+    if (target === "platform") {
+      setManagerSession(null);
+      setPlatformAdmin(null);
+    } else {
+      setHotelSession(null);
+      setProfile(null);
+    }
   }, []);
 
   const getToken = useCallback(async (target?: LoginTarget) => {
     const portal = target ?? inferLoginTarget();
-    const { data } = await getSupabaseClient(portal).auth.getSession();
-    if (!data.session) throw new Error("未登入");
-    return data.session.access_token;
+    const session = readSession(portal);
+    if (!session) throw new Error("未登入");
+    return session.access_token;
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -166,6 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       getToken,
       refreshProfile,
+      setSessionFromToken,
     }),
     [
       hotelSession,
@@ -177,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       getToken,
       refreshProfile,
+      setSessionFromToken,
     ],
   );
 

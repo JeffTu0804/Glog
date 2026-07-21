@@ -1,6 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { AppError } from "../errors/AppError.js";
-import { getSupabaseAdmin } from "../lib/supabaseAdmin.js";
 
 export interface LineProfile {
   sub: string;
@@ -147,38 +146,28 @@ function lineEmail(profile: LineProfile): string {
   return `line_${profile.sub}@line.oauth.local`;
 }
 
+/**
+ * LINE 登入：在 Mongo 建立／取得帳號並簽發 JWT，導回前端 callback。
+ */
 export async function createLineSignInLink(
   profile: LineProfile,
   target: LineLoginTarget = "hotel",
 ): Promise<string> {
-  const admin = getSupabaseAdmin();
-  const email = lineEmail(profile);
+  const { findOrCreateLineAccount, issueTokenForAccount } = await import(
+    "./mongoAuthService.js"
+  );
 
-  const { error: createError } = await admin.auth.admin.createUser({
-    email,
-    email_confirm: true,
-    user_metadata: {
-      full_name: profile.name,
-      avatar_url: profile.picture,
-      line_sub: profile.sub,
-    },
-    app_metadata: { provider: "line" },
+  const account = await findOrCreateLineAccount({
+    lineUserId: profile.sub,
+    email: lineEmail(profile),
+    name: profile.name,
   });
 
-  if (createError && !createError.message.toLowerCase().includes("already")) {
-    throw new AppError(502, `建立 Supabase 使用者失敗：${createError.message}`);
-  }
-
+  const token = issueTokenForAccount(account);
   const { frontendUrl } = getLineConfig();
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: { redirectTo: `${frontendUrl}/auth/callback?target=${target}` },
+  const params = new URLSearchParams({
+    target,
+    access_token: token,
   });
-
-  if (error || !data.properties?.action_link) {
-    throw new AppError(502, error?.message ?? "無法建立登入連結");
-  }
-
-  return data.properties.action_link;
+  return `${frontendUrl}/auth/callback?${params.toString()}`;
 }

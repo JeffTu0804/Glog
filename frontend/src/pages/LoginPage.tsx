@@ -58,9 +58,7 @@ function LoginPageContent({
       const msg =
         err instanceof Error ? err.message : "登入失敗";
       if (msg.includes("Invalid login credentials")) {
-        setError("帳號或密碼錯誤，請確認 Supabase 設定的密碼");
-      } else if (msg.includes("Email not confirmed")) {
-        setError("Email 尚未驗證，請到信箱點確認連結");
+        setError("帳號或密碼錯誤");
       } else if (msg.includes("非平台管理員")) {
         if (target === "platform") {
           navigate("/manager/apply?auto=1", { replace: true });

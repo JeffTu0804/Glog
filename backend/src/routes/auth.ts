@@ -8,6 +8,14 @@ import {
   lookupTenantBySlug,
   registerHotel,
 } from "../services/authService.js";
+import {
+  changePassword,
+  createPasswordResetToken,
+  loginWithPassword,
+  resetPasswordWithToken,
+  signupWithPassword,
+} from "../services/mongoAuthService.js";
+import { requestManagerAccess } from "../services/platformAccessService.js";
 import { DEPARTMENT_LABELS, roleToDepartment } from "../utils/department.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -39,10 +47,102 @@ function parsePositionLevel(value: unknown): UserPositionLevel | undefined {
   return value as UserPositionLevel;
 }
 
-/**
- * GET /api/v1/auth/tenants/lookup?slug=demo-hotel
- * 依飯店代碼查詢（供 onboarding 表單確認）
- */
+authRouter.post(
+  "/signup",
+  asyncHandler(async (req, res) => {
+    const { email, password, name, asManagerApplicant } = req.body as {
+      email?: unknown;
+      password?: unknown;
+      name?: unknown;
+      asManagerApplicant?: unknown;
+    };
+    if (typeof email !== "string" || typeof password !== "string") {
+      throw new AppError(400, "email 與 password 為必填");
+    }
+
+    const result = await signupWithPassword({
+      email,
+      password,
+      name: typeof name === "string" ? name : undefined,
+      asManagerApplicant: asManagerApplicant === true,
+    });
+
+    if (asManagerApplicant === true) {
+      await requestManagerAccess({
+        supabaseUserId: result.account.id,
+        email: result.account.email,
+        name: result.account.name,
+      });
+    }
+
+    res.status(201).json(result);
+  }),
+);
+
+authRouter.post(
+  "/login",
+  asyncHandler(async (req, res) => {
+    const { email, password, target } = req.body as {
+      email?: unknown;
+      password?: unknown;
+      target?: unknown;
+    };
+    if (typeof email !== "string" || typeof password !== "string") {
+      throw new AppError(400, "email 與 password 為必填");
+    }
+    const portal = target === "platform" ? "platform" : "hotel";
+    const result = await loginWithPassword({ email, password, target: portal });
+    res.json(result);
+  }),
+);
+
+authRouter.post(
+  "/forgot-password",
+  asyncHandler(async (req, res) => {
+    const email = typeof req.body?.email === "string" ? req.body.email : "";
+    if (!email.trim()) throw new AppError(400, "email 為必填");
+    const result = await createPasswordResetToken(email);
+    res.json({
+      ok: true,
+      message: "若 Email 存在，已產生重設連結",
+      resetUrl: result.resetUrl,
+    });
+  }),
+);
+
+authRouter.post(
+  "/reset-password",
+  asyncHandler(async (req, res) => {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const newPassword =
+      typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+    if (!token || !newPassword) {
+      throw new AppError(400, "token 與 newPassword 為必填");
+    }
+    await resetPasswordWithToken({ token, newPassword });
+    res.json({ ok: true });
+  }),
+);
+
+authRouter.post(
+  "/change-password",
+  authenticateSupabase,
+  asyncHandler(async (req, res) => {
+    const currentPassword =
+      typeof req.body?.currentPassword === "string"
+        ? req.body.currentPassword
+        : undefined;
+    const newPassword =
+      typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+    const account = await changePassword({
+      accountId: req.supabaseAuth!.id,
+      currentPassword,
+      newPassword,
+    });
+    res.json({ account });
+  }),
+);
+
 authRouter.get(
   "/tenants/lookup",
   authenticateSupabase,
@@ -65,10 +165,6 @@ authRouter.get(
   }),
 );
 
-/**
- * POST /api/v1/auth/join
- * 加入現有飯店（LINE 員工首次登入填寫部門職位）
- */
 authRouter.post(
   "/join",
   authenticateSupabase,
@@ -111,10 +207,6 @@ authRouter.post(
   }),
 );
 
-/**
- * POST /api/v1/auth/register
- * 註冊新飯店租戶 + 第一位管理員（需先完成 Supabase signUp / OAuth）
- */
 authRouter.post(
   "/register",
   authenticateSupabase,
@@ -150,18 +242,19 @@ authRouter.post(
   }),
 );
 
-/**
- * GET /api/v1/auth/status
- * 檢查 Supabase 帳號是否已完成 glog 註冊
- */
 authRouter.get(
   "/status",
   authenticateSupabase,
   asyncHandler(async (req, res) => {
     const auth = req.supabaseAuth!;
 
-    const user = await prisma.user.findUnique({
-      where: { supabaseUserId: auth.id },
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { supabaseUserId: auth.id },
+          ...(auth.email ? [{ email: auth.email.toLowerCase() }] : []),
+        ],
+      },
       select: {
         id: true,
         email: true,

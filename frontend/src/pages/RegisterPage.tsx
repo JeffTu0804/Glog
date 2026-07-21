@@ -4,11 +4,11 @@ import { AuthFooterLink, OAuthButtons } from "../components/OAuthButtons";
 import { useAuth } from "../context/AuthContext";
 import { getDefaultHomePath } from "../lib/homeRoute";
 import { registerHotel } from "../lib/auth";
-import { hotelSupabase } from "../lib/supabase";
+import { getApiBase } from "../lib/session";
 
 export function RegisterPage() {
   const navigate = useNavigate();
-  const { hotelSession, profile, loading, refreshProfile } = useAuth();
+  const { hotelSession, profile, loading, refreshProfile, setSessionFromToken } = useAuth();
   const [hotelName, setHotelName] = useState("");
   const [slug, setSlug] = useState("");
   const [adminName, setAdminName] = useState("");
@@ -34,26 +34,31 @@ export function RegisterPage() {
     setSubmitting(true);
 
     try {
-      const { data, error: signUpError } = await hotelSupabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: adminName },
-        },
+      const signupRes = await fetch(`${getApiBase()}/api/v1/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, name: adminName }),
       });
-
-      if (signUpError) throw signUpError;
-
-      const token = data.session?.access_token;
-
-      if (!token) {
-        setError(
-          "註冊信已寄出，請先到信箱點確認連結，再回來登入完成飯店設定",
-        );
-        return;
+      const signupBody = (await signupRes.json().catch(() => ({}))) as {
+        token?: string;
+        account?: { id: string; email: string; name: string };
+        error?: string;
+        message?: string;
+      };
+      if (!signupRes.ok) {
+        throw new Error(signupBody.error || signupBody.message || "註冊失敗");
+      }
+      if (!signupBody.token || !signupBody.account) {
+        throw new Error("註冊成功但未取得登入憑證");
       }
 
-      await registerHotel(token, { hotelName, slug, adminName });
+      await setSessionFromToken("hotel", signupBody.token, {
+        id: signupBody.account.id,
+        email: signupBody.account.email,
+        name: signupBody.account.name,
+      });
+
+      await registerHotel(signupBody.token, { hotelName, slug, adminName });
       await refreshProfile();
       navigate("/guest-requests");
     } catch (err) {

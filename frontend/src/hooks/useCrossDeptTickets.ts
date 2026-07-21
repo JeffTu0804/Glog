@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { hotelSupabase } from "../lib/supabase";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -39,12 +38,6 @@ export interface CrossDeptTicket {
   handledBy?: CrossDeptEmployeeRef | null;
 }
 
-const ACTIVE = new Set<CrossDeptTicketStatus>([
-  "pending",
-  "processing",
-  "delayed",
-]);
-
 function mapRow(row: Record<string, unknown>): CrossDeptTicket {
   return {
     id: String(row.id),
@@ -69,8 +62,7 @@ function mapRow(row: Record<string, unknown>): CrossDeptTicket {
 }
 
 /**
- * 管理看板：首次 fetch + Supabase Realtime 訂閱 tickets INSERT/UPDATE
- * 工程師標記 delayed 時，delay_reason 會立刻反映在 UI，無需重新整理。
+ * 管理看板：首次 fetch + 輪詢更新 tickets
  */
 export function useCrossDeptTickets(hotelIdOverride?: string) {
   const { getToken } = useAuth();
@@ -100,51 +92,14 @@ export function useCrossDeptTickets(hotelIdOverride?: string) {
     void load();
   }, [load]);
 
+  // 輪詢取代 Supabase Realtime（認證已改 Mongo）
   useEffect(() => {
     if (!hotelId) return;
-
-    const channel = hotelSupabase
-      .channel(`cross-dept-tickets:${hotelId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "tickets",
-          filter: `hotel_id=eq.${hotelId}`,
-        },
-        (payload) => {
-          const next = mapRow(payload.new as Record<string, unknown>);
-          if (!ACTIVE.has(next.status)) return;
-          setTickets((prev) => {
-            if (prev.some((t) => t.id === next.id)) return prev;
-            return [next, ...prev];
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "tickets",
-          filter: `hotel_id=eq.${hotelId}`,
-        },
-        (payload) => {
-          const next = mapRow(payload.new as Record<string, unknown>);
-          setTickets((prev) => {
-            const without = prev.filter((t) => t.id !== next.id);
-            if (!ACTIVE.has(next.status)) return without;
-            return [next, ...without];
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void hotelSupabase.removeChannel(channel);
-    };
-  }, [hotelId]);
+    const timer = window.setInterval(() => {
+      void load();
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [hotelId, load]);
 
   return { tickets, hotelId, loading, error, refresh: load };
 }
