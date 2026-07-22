@@ -131,17 +131,20 @@ export async function reviewManagerAccessRequest(input: {
     },
   });
 
-  // 同步 Mongo AuthAccount
+  // 同步 Mongo AuthAccount（userId 是 profileUuid，不是 ObjectId）
   try {
     const { connectMongo } = await import("../lib/mongo.js");
-    const { AuthAccount } = await import("../models/AuthAccount.js");
+    const { findAuthAccountById } = await import("./mongoAuthService.js");
     await connectMongo();
-    await AuthAccount.findByIdAndUpdate(input.userId, {
-      portalRole: input.decision === "approve" ? "manager" : "user",
-      managerAccessStatus: input.decision === "approve" ? "approved" : "rejected",
-      managerReviewedAt: new Date(),
-      managerReviewedBy: input.reviewerId,
-    });
+    const account = await findAuthAccountById(input.userId);
+    if (account) {
+      account.portalRole = input.decision === "approve" ? "manager" : "user";
+      account.managerAccessStatus =
+        input.decision === "approve" ? "approved" : "rejected";
+      account.managerReviewedAt = new Date();
+      account.managerReviewedBy = input.reviewerId;
+      await account.save();
+    }
   } catch {
     /* Prisma 仍為 Manager 審核來源之一；Mongo 同步失敗不阻斷 */
   }

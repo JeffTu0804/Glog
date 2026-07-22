@@ -8,6 +8,7 @@ import {
 } from "../components/ManagerAuthLayout";
 import { AuthFooterLink, OAuthButtons } from "../components/OAuthButtons";
 import { useAuth } from "../context/AuthContext";
+import { signInWithLine } from "../lib/auth";
 import type { LoginTarget } from "../types/auth";
 
 interface LoginPageContentProps {
@@ -80,86 +81,115 @@ function LoginPageContent({
     }
   }
 
-  const formContent = (
-    <>
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+  const emailPasswordForm = (
+    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+      <div>
+        <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+          Email
+        </label>
+        <input
+          id="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className={
+            target === "platform"
+              ? managerInputClass
+              : "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          }
+        />
+      </div>
+      <div>
+        <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+          密碼
+        </label>
+        <input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className={
+            target === "platform"
+              ? managerInputClass
+              : "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          }
+        />
+        <div className="mt-2 text-right">
+          <Link
+            to={forgotPasswordPath}
             className={
               target === "platform"
-                ? managerInputClass
-                : "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                ? `text-xs ${managerLinkClass}`
+                : "text-xs text-indigo-600 hover:text-indigo-700 hover:underline"
             }
-          />
+          >
+            忘記密碼？
+          </Link>
         </div>
-        <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
-            密碼
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className={
-              target === "platform"
-                ? managerInputClass
-                : "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            }
-          />
-          <div className="mt-2 text-right">
-            <Link
-              to={forgotPasswordPath}
-              className={
-                target === "platform"
-                  ? `text-xs ${managerLinkClass}`
-                  : "text-xs text-indigo-600 hover:text-indigo-700 hover:underline"
-              }
-            >
-              忘記密碼？
-            </Link>
-          </div>
-        </div>
+      </div>
 
+      {target === "hotel" && error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+      )}
+      {searchParams.get("reset") === "success" && (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          密碼已更新，請使用新密碼登入。
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={submitting}
+        className={
+          target === "platform"
+            ? managerButtonClass
+            : "w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        }
+      >
+        {submitting ? "登入中…" : "登入"}
+      </button>
+    </form>
+  );
+
+  const formContent =
+    target === "platform" ? (
+      <div className="space-y-4">
         {error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
         )}
-        {searchParams.get("reset") === "success" && (
-          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            密碼已更新，請使用新密碼登入。
-          </p>
-        )}
-
         <button
-          type="submit"
+          type="button"
           disabled={submitting}
-          className={
-            target === "platform"
-              ? managerButtonClass
-              : "w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          }
+          onClick={() => {
+            try {
+              signInWithLine("platform");
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "LINE 登入失敗");
+            }
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#06C755] py-2.5 text-sm font-medium text-white hover:bg-[#05b34c] disabled:opacity-50"
         >
-          {submitting ? "登入中…" : "登入"}
+          使用 LINE 登入
         </button>
-      </form>
-
-      {target === "hotel" && (
-        <>
-          <OAuthButtons onError={setError} disabled={submitting} />
-          <AuthFooterLink mode="login" />
-        </>
-      )}
-    </>
-  );
+        <div className="relative py-1">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-white px-2 text-slate-500">或使用 Email / 密碼</span>
+          </div>
+        </div>
+        {emailPasswordForm}
+      </div>
+    ) : (
+      <>
+        {emailPasswordForm}
+        <OAuthButtons target="hotel" onError={setError} disabled={submitting} />
+        <AuthFooterLink mode="login" />
+      </>
+    );
 
   const footerLinks =
     target === "hotel" ? (

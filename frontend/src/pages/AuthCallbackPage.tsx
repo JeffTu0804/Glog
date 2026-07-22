@@ -32,7 +32,7 @@ export function AuthCallbackPage() {
             navigate("/manager", { replace: true });
             return;
           } catch {
-            setError("此 LINE 帳號尚未具有 Manager 權限");
+            navigate("/manager/apply?auto=1", { replace: true });
             return;
           }
         }
