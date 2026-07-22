@@ -1,11 +1,15 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { AdminLayout } from "./components/AdminLayout";
 import { Layout } from "./components/Layout";
 import { OnboardingGuard } from "./components/OnboardingGuard";
 import { PlatformLayout } from "./components/PlatformLayout";
 import { useAuth } from "./context/AuthContext";
+import { isHotelAdmin } from "./lib/hotelAdmin";
 import { getDefaultHomePath } from "./lib/homeRoute";
 import { AssetsPage } from "./pages/AssetsPage";
+import { CostLogsPage } from "./pages/CostLogsPage";
 import { HomePage } from "./pages/HomePage";
+import { InventoryPage } from "./pages/InventoryPage";
 import { LandingPage } from "./pages/LandingPage";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { LogbookPage } from "./pages/LogbookPage";
@@ -23,6 +27,7 @@ import {
 import { RegisterPage } from "./pages/RegisterPage";
 import { TicketDetailPage } from "./pages/TicketDetailPage";
 import { TicketHistoryPage } from "./pages/TicketHistoryPage";
+import { UsersPage } from "./pages/UsersPage";
 import { LiffBindPage } from "./pages/liff/LiffBindPage";
 import { LiffReportPage } from "./pages/liff/LiffReportPage";
 import { ChatHubPage } from "./pages/ChatHubPage";
@@ -30,6 +35,9 @@ import { EngineeringDepartmentPage } from "./pages/departments/EngineeringDepart
 import { FoodBeverageDepartmentPage } from "./pages/departments/FoodBeverageDepartmentPage";
 import { HousekeepingDepartmentPage } from "./pages/departments/HousekeepingDepartmentPage";
 import { FrontOfficeDepartmentPage } from "./pages/departments/FrontOfficeDepartmentPage";
+import { AdminAnalyticsPage } from "./pages/admin/AdminAnalyticsPage";
+import { AdminHomePage } from "./pages/admin/AdminHomePage";
+import { AdminLoginPage } from "./pages/admin/AdminLoginPage";
 import { PlatformAnalyticsPage } from "./pages/platform/PlatformAnalyticsPage";
 import { PlatformDashboardPage } from "./pages/platform/PlatformDashboardPage";
 import { PlatformCostLogsPage } from "./pages/platform/PlatformCostLogsPage";
@@ -79,6 +87,41 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** 飯店 Admin：員工 JWT + 問卷職稱主管／經理（或系統 ADMIN），僅本租戶 */
+function HotelAdminProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { hotelSession, profile, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-slate-500">
+        載入中…
+      </div>
+    );
+  }
+
+  if (!hotelSession) return <Navigate to="/admin/login" replace />;
+
+  return (
+    <OnboardingGuard>
+      {!profile ? null : isHotelAdmin(profile) ? (
+        <>{children}</>
+      ) : (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
+          <p className="text-slate-700">
+            僅職稱為「主管」或「經理」的飯店員工可進入 Admin 後台。
+          </p>
+          <a href="/chat" className="text-violet-600 hover:underline">
+            前往員工中控台
+          </a>
+          <a href="/admin/login" className="text-sm text-slate-500 hover:underline">
+            返回 Admin 登入
+          </a>
+        </div>
+      )}
+    </OnboardingGuard>
+  );
+}
+
 function HomeRedirect() {
   return <Navigate to="/chat" replace />;
 }
@@ -90,6 +133,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/manager/login" element={<ManagerLoginPage />} />
       <Route path="/manager/apply" element={<ManagerApplyPage />} />
       <Route path="/manager/forgot-password" element={<ManagerForgotPasswordPage />} />
@@ -149,6 +193,20 @@ export default function App() {
         <Route path="manager/costs" element={<PlatformCostLogsPage />} />
         <Route path="manager/users" element={<PlatformUsersPage />} />
         <Route path="manager/tenants/:id" element={<TenantDetailPage />} />
+      </Route>
+
+      <Route
+        element={
+          <HotelAdminProtectedRoute>
+            <AdminLayout />
+          </HotelAdminProtectedRoute>
+        }
+      >
+        <Route path="admin" element={<AdminHomePage />} />
+        <Route path="admin/analytics" element={<AdminAnalyticsPage />} />
+        <Route path="admin/inventory" element={<InventoryPage />} />
+        <Route path="admin/costs" element={<CostLogsPage />} />
+        <Route path="admin/users" element={<UsersPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

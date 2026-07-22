@@ -34,11 +34,11 @@ const DEPARTMENT_OPTIONS: { label: string; role: JoinableRole }[] = [
   { label: "工程", role: "ENGINEER" },
 ];
 
-/** 職稱選項 → 對應職級（positionLevel） */
+/** 職稱選項 → 對應職級（positionLevel）；主管／經理可進 /admin 飯店後台 */
 const POSITION_OPTIONS: { label: string; value: PositionLevel }[] = [
   { label: "員工", value: "STAFF" },
-  { label: "主管", value: "SUPERVISOR" },
-  { label: "經理", value: "MANAGER" },
+  { label: "主管（可進飯店 Admin）", value: "SUPERVISOR" },
+  { label: "經理（可進飯店 Admin）", value: "MANAGER" },
 ];
 
 export function OnboardingGuard({ children }: { children: ReactNode }) {

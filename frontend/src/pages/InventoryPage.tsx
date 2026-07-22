@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
+import { isHotelAdmin } from "../lib/hotelAdmin";
 import type { InventoryItem } from "../types/api";
 
 export function InventoryPage() {
@@ -15,7 +16,7 @@ export function InventoryPage() {
   const [quantity, setQuantity] = useState(0);
   const [unitCost, setUnitCost] = useState(0);
 
-  const isAdmin = profile?.role === "ADMIN";
+  const isAdmin = isHotelAdmin(profile);
 
   async function load() {
     setLoading(true);

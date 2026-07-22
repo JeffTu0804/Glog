@@ -12,14 +12,21 @@ export type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type AssetType = "ROOM" | "EQUIPMENT" | "FACILITY";
 export type AssetStatus = "OPERATIONAL" | "MAINTENANCE" | "OUT_OF_ORDER";
 
+export type UserPositionLevel = "STAFF" | "SUPERVISOR" | "MANAGER";
+
 export interface User {
   id: string;
   email: string;
   name: string;
   role: UserRole;
-  status: UserStatus;
-  skills: string[];
+  status?: UserStatus;
+  skills?: string[];
   department?: Department;
+  positionLevel?: UserPositionLevel;
+  tenantId?: string;
+  tenantName?: string;
+  tenantSlug?: string;
+  isHotelAdmin?: boolean;
 }
 
 export interface Asset {

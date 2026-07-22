@@ -118,7 +118,9 @@ export function getOAuthRedirectUrl() {
   return `${window.location.origin}/auth/callback`;
 }
 
-export function signInWithLine(target: "hotel" | "platform" = "hotel") {
+export function signInWithLine(
+  target: "hotel" | "platform" | "hotelAdmin" = "hotel",
+) {
   // 走後端自訂 LINE OAuth（Supabase 雲端尚未全面支援內建 line provider）
   window.location.href = `${API_BASE}/api/v1/auth/line/login?target=${target}`;
 }

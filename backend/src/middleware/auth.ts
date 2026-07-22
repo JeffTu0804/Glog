@@ -9,6 +9,7 @@ import {
 } from "../services/mongoAuthService.js";
 import { syncLineUserId } from "../services/lineMessagingService.js";
 import { roleToDepartment } from "../utils/department.js";
+import { isHotelAdminRole } from "../utils/hotelAdmin.js";
 
 /**
  * 驗證 Mongo Auth JWT，並從 Prisma User 表載入 tenantId 與 role。
@@ -33,19 +34,24 @@ export async function authenticate(
     }
 
     const candidateIds = await resolveHotelUserIds(account);
+    const userInclude = { tenant: { select: { id: true, name: true, slug: true } } } as const;
+
     let dbUser = await prisma.user.findFirst({
       where: { supabaseUserId: { in: candidateIds } },
+      include: userInclude,
     });
 
     if (!dbUser && account.lineUserId) {
       dbUser = await prisma.user.findFirst({
         where: { lineUserId: account.lineUserId },
+        include: userInclude,
       });
     }
 
     if (!dbUser && account.email && !account.email.endsWith("@line.oauth.local")) {
       dbUser = await prisma.user.findFirst({
         where: { email: account.email.toLowerCase() },
+        include: userInclude,
       });
     }
 
@@ -72,11 +78,18 @@ export async function authenticate(
     req.user = {
       id: dbUser.id,
       tenantId: dbUser.tenantId,
+      tenantName: dbUser.tenant.name,
+      tenantSlug: dbUser.tenant.slug,
       supabaseUserId: authUserId,
       role: dbUser.role,
+      positionLevel: dbUser.positionLevel,
       email: dbUser.email,
       name: dbUser.name,
       department: roleToDepartment(dbUser.role),
+      isHotelAdmin: isHotelAdminRole({
+        role: dbUser.role,
+        positionLevel: dbUser.positionLevel,
+      }),
     };
 
     next();

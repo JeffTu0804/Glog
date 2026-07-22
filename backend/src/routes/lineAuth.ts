@@ -6,11 +6,18 @@ import {
   createLineSignInLink,
   exchangeLineCode,
   getLineOAuthTarget,
+  lineLoginPath,
   verifyLineOAuthState,
+  type LineLoginTarget,
 } from "../services/lineAuthService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 export const lineAuthRouter = Router();
+
+function parseLineLoginTarget(raw: unknown): LineLoginTarget {
+  if (raw === "platform" || raw === "hotelAdmin") return raw;
+  return "hotel";
+}
 
 /**
  * GET /api/v1/auth/line/login
@@ -19,10 +26,7 @@ export const lineAuthRouter = Router();
 lineAuthRouter.get(
   "/login",
   asyncHandler(async (req, res) => {
-    const target =
-      typeof req.query.target === "string" && req.query.target === "platform"
-        ? "platform"
-        : "hotel";
+    const target = parseLineLoginTarget(req.query.target);
     const state = createLineOAuthState(target);
     res.redirect(buildLineAuthorizeUrl(state));
   }),
@@ -40,7 +44,7 @@ lineAuthRouter.get(
     const lineError = typeof req.query.error === "string" ? req.query.error : "";
 
     const frontendUrl = process.env.FRONTEND_URL?.trim() || "http://localhost:5173";
-    const loginPath = getLineOAuthTarget(state) === "platform" ? "/manager/login" : "/login";
+    const loginPath = lineLoginPath(getLineOAuthTarget(state));
 
     if (lineError) {
       res.redirect(

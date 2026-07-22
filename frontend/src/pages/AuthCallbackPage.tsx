@@ -17,30 +17,36 @@ export function AuthCallbackPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const target = searchParams.get("target") === "platform" ? "platform" : "hotel";
+        const rawTarget = searchParams.get("target");
         const token = searchParams.get("access_token");
         if (!token) {
           setError("登入失敗，請重試");
           return;
         }
 
-        await setSessionFromToken(target, token);
-
-        if (target === "platform") {
+        if (rawTarget === "platform") {
+          await setSessionFromToken("platform", token);
           try {
             await platformApi.getMe(token);
             navigate("/manager", { replace: true });
-            return;
           } catch {
             navigate("/manager/apply?auto=1", { replace: true });
-            return;
           }
+          return;
         }
 
+        // hotel / hotelAdmin 共用員工 JWT
+        await setSessionFromToken("hotel", token);
         const status = await checkAuthStatus(token);
         if (status.registered) {
           await refreshProfile();
         }
+
+        if (rawTarget === "hotelAdmin") {
+          navigate("/admin", { replace: true });
+          return;
+        }
+
         navigate("/chat", { replace: true });
       } catch (err) {
         setError(err instanceof Error ? err.message : "登入處理失敗");
@@ -49,13 +55,17 @@ export function AuthCallbackPage() {
   }, [navigate, refreshProfile, searchParams, setSessionFromToken]);
 
   if (error) {
+    const rawTarget = searchParams.get("target");
+    const backHref =
+      rawTarget === "platform"
+        ? "/manager/login"
+        : rawTarget === "hotelAdmin"
+          ? "/admin/login"
+          : "/login";
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4">
         <p className="text-red-600">{error}</p>
-        <a
-          href={searchParams.get("target") === "platform" ? "/manager/login" : "/login"}
-          className="text-indigo-600 hover:underline"
-        >
+        <a href={backHref} className="text-indigo-600 hover:underline">
           返回登入
         </a>
       </div>

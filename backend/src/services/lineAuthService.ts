@@ -8,7 +8,7 @@ export interface LineProfile {
   email?: string;
 }
 
-export type LineLoginTarget = "hotel" | "platform";
+export type LineLoginTarget = "hotel" | "platform" | "hotelAdmin";
 
 function getLineConfig() {
   const channelId = process.env.LINE_CHANNEL_ID?.trim();
@@ -29,7 +29,15 @@ function getLineConfig() {
 }
 
 function normalizeTarget(target?: string): LineLoginTarget {
-  return target === "platform" ? "platform" : "hotel";
+  if (target === "platform") return "platform";
+  if (target === "hotelAdmin") return "hotelAdmin";
+  return "hotel";
+}
+
+export function lineLoginPath(target: LineLoginTarget): string {
+  if (target === "platform") return "/manager/login";
+  if (target === "hotelAdmin") return "/admin/login";
+  return "/login";
 }
 
 function decodeAndVerifyState(state: string): { target: LineLoginTarget } | null {

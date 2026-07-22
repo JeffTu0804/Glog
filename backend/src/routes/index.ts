@@ -14,6 +14,7 @@ import { usersRouter } from "./users.js";
 import { crossDeptRouter } from "./cross-dept.js";
 import { noticesRouter } from "./notices.js";
 import { chatRouter } from "./chat.js";
+import { analyticsRouter } from "./analytics.js";
 
 export const apiRouter = Router();
 
@@ -21,6 +22,7 @@ export const apiRouter = Router();
 apiRouter.use(authenticate);
 
 apiRouter.use("/me", meRouter);
+apiRouter.use("/analytics", analyticsRouter);
 apiRouter.use("/maintenance-tickets", maintenanceTicketsRouter);
 apiRouter.use("/assets", assetsRouter);
 apiRouter.use("/users", usersRouter);

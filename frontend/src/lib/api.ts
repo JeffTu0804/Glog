@@ -21,6 +21,12 @@ import type {
   User,
   UserRole,
 } from "../types/api";
+import type {
+  AnalyticsDepartment,
+  AnalyticsPeriod,
+  ExecutiveSummary,
+  PlatformAnalytics,
+} from "../types/platform";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "";
@@ -57,6 +63,32 @@ async function request<T>(
 
 export const api = {
   getMe: (token: string) => request<{ user: User }>("/me", token),
+
+  getAnalytics: (
+    token: string,
+    params?: { period?: AnalyticsPeriod; department?: AnalyticsDepartment },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.period) search.set("period", params.period);
+    if (params?.department) search.set("department", params.department);
+    const query = search.toString() ? `?${search.toString()}` : "";
+    return request<{ analytics: PlatformAnalytics }>(`/analytics${query}`, token);
+  },
+
+  getAnalyticsAiSummary: (
+    token: string,
+    params?: { period?: AnalyticsPeriod; department?: AnalyticsDepartment },
+  ) => {
+    const search = new URLSearchParams();
+    if (params?.period) search.set("period", params.period);
+    if (params?.department) search.set("department", params.department);
+    const query = search.toString() ? `?${search.toString()}` : "";
+    return request<{
+      summary: ExecutiveSummary;
+      period: AnalyticsPeriod;
+      department: AnalyticsDepartment;
+    }>(`/analytics/ai-summary${query}`, token);
+  },
 
   getTickets: (
     token: string,

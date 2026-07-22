@@ -1,7 +1,6 @@
-import { UserRole } from "@prisma/client";
 import { Router } from "express";
 import { AppError } from "../errors/AppError.js";
-import { requireRole } from "../middleware/requireRole.js";
+import { requireHotelAdmin } from "../middleware/requireHotelAdmin.js";
 import {
   createInventory,
   findInventoryForTenant,
@@ -74,7 +73,7 @@ inventoryRouter.get(
  */
 inventoryRouter.post(
   "/",
-  requireRole(UserRole.ADMIN),
+  requireHotelAdmin,
   asyncHandler(async (req, res) => {
     const { name, sku, category, quantity, unit, unitCost, reorderLevel } =
       req.body as Record<string, unknown>;
@@ -99,7 +98,7 @@ inventoryRouter.post(
  */
 inventoryRouter.patch(
   "/:id",
-  requireRole(UserRole.ADMIN),
+  requireHotelAdmin,
   asyncHandler(async (req, res) => {
     const { name, sku, category, quantity, unit, unitCost, reorderLevel } =
       req.body as Record<string, unknown>;

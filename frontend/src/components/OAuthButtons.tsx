@@ -5,7 +5,7 @@ import type { LoginTarget } from "../types/auth";
 interface OAuthButtonsProps {
   onError: (message: string) => void;
   disabled?: boolean;
-  target?: LoginTarget;
+  target?: LoginTarget | "hotelAdmin";
   buttonLabel?: string;
   dividerLabel?: string;
 }
