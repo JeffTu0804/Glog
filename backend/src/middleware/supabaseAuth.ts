@@ -1,7 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../errors/AppError.js";
 import { verifyAuthToken } from "../lib/jwt.js";
-import { findAuthAccountById } from "../services/mongoAuthService.js";
+import {
+  ensureProfileUuid,
+  findAuthAccountById,
+} from "../services/mongoAuthService.js";
 
 export interface SupabaseAuthUser {
   id: string;
@@ -40,8 +43,9 @@ export async function authenticateSupabase(
       throw new AppError(401, "無效或已過期的 token");
     }
 
+    const authUserId = await ensureProfileUuid(account);
     req.supabaseAuth = {
-      id: String(account._id),
+      id: authUserId,
       email: account.email,
       lineSub: account.lineUserId ?? undefined,
       name: account.name || undefined,

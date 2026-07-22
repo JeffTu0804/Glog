@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { AppError } from "../errors/AppError.js";
 import { connectMongo } from "../lib/mongo.js";
@@ -10,6 +10,9 @@ import {
 } from "../models/AuthAccount.js";
 
 const SALT_ROUNDS = 10;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const OBJECT_ID_RE = /^[0-9a-f]{24}$/i;
 
 export type AuthAccountPublic = {
   id: string;
@@ -20,9 +23,34 @@ export type AuthAccountPublic = {
   lineUserId: string | null;
 };
 
+function isUuid(value: string | null | undefined): value is string {
+  return Boolean(value && UUID_RE.test(value));
+}
+
+/** JWT sub / profiles.id / 對外 auth id（必須是 UUID） */
+export async function ensureProfileUuid(
+  doc: AuthAccountDocument,
+): Promise<string> {
+  if (isUuid(doc.profileUuid)) return doc.profileUuid;
+  if (isUuid(doc.legacySupabaseUserId)) {
+    doc.profileUuid = doc.legacySupabaseUserId;
+  } else {
+    doc.profileUuid = randomUUID();
+  }
+  await doc.save();
+  return doc.profileUuid!;
+}
+
+export function getAuthUserId(doc: AuthAccountDocument): string {
+  if (isUuid(doc.profileUuid)) return doc.profileUuid;
+  if (isUuid(doc.legacySupabaseUserId)) return doc.legacySupabaseUserId;
+  // 尚未 ensure 時的後備（不應出現在發 token 之後）
+  return String(doc._id);
+}
+
 function toPublic(doc: AuthAccountDocument): AuthAccountPublic {
   return {
-    id: String(doc._id),
+    id: getAuthUserId(doc),
     email: doc.email,
     name: doc.name || "",
     portalRole: doc.portalRole === "manager" ? "manager" : "user",
@@ -31,9 +59,9 @@ function toPublic(doc: AuthAccountDocument): AuthAccountPublic {
   };
 }
 
-function tokenPayload(doc: AuthAccountDocument): AuthTokenPayload {
+function tokenPayload(doc: AuthAccountDocument, sub: string): AuthTokenPayload {
   return {
-    sub: String(doc._id),
+    sub,
     email: doc.email,
     name: doc.name || "",
     portalRole: doc.portalRole === "manager" ? "manager" : "user",
@@ -41,13 +69,20 @@ function tokenPayload(doc: AuthAccountDocument): AuthTokenPayload {
   };
 }
 
-export function issueTokenForAccount(doc: AuthAccountDocument): string {
-  return signAuthToken(tokenPayload(doc));
+export async function issueTokenForAccount(
+  doc: AuthAccountDocument,
+): Promise<string> {
+  const sub = await ensureProfileUuid(doc);
+  return signAuthToken(tokenPayload(doc, sub));
 }
 
 /** 同步 Prisma profiles，讓既有 Manager 審核流程仍可用 */
 async function syncPrismaProfile(doc: AuthAccountDocument) {
-  const id = String(doc._id);
+  const id = await ensureProfileUuid(doc);
+  const reviewedBy = isUuid(doc.managerReviewedBy)
+    ? doc.managerReviewedBy
+    : null;
+
   await prisma.authProfile.upsert({
     where: { id },
     create: {
@@ -58,7 +93,7 @@ async function syncPrismaProfile(doc: AuthAccountDocument) {
       managerAccessStatus: doc.managerAccessStatus || "none",
       managerRequestedAt: doc.managerRequestedAt ?? null,
       managerReviewedAt: doc.managerReviewedAt ?? null,
-      managerReviewedBy: doc.managerReviewedBy ?? null,
+      managerReviewedBy: reviewedBy,
     },
     update: {
       email: doc.email,
@@ -67,7 +102,7 @@ async function syncPrismaProfile(doc: AuthAccountDocument) {
       managerAccessStatus: doc.managerAccessStatus || "none",
       managerRequestedAt: doc.managerRequestedAt ?? null,
       managerReviewedAt: doc.managerReviewedAt ?? null,
-      managerReviewedBy: doc.managerReviewedBy ?? null,
+      managerReviewedBy: reviewedBy,
     },
   });
 
@@ -89,13 +124,22 @@ async function syncPrismaProfile(doc: AuthAccountDocument) {
 
 export async function findAuthAccountById(id: string) {
   await connectMongo();
-  return AuthAccount.findById(id);
+  if (OBJECT_ID_RE.test(id)) {
+    const byOid = await AuthAccount.findById(id);
+    if (byOid) return byOid;
+  }
+  return AuthAccount.findOne({
+    $or: [{ profileUuid: id }, { legacySupabaseUserId: id }],
+  });
 }
 
-export async function resolveHotelUserIds(account: AuthAccountDocument): Promise<string[]> {
-  const ids = [String(account._id)];
+export async function resolveHotelUserIds(
+  account: AuthAccountDocument,
+): Promise<string[]> {
+  const ids = [String(account._id), getAuthUserId(account)];
   if (account.legacySupabaseUserId) ids.push(account.legacySupabaseUserId);
-  return ids;
+  if (account.profileUuid) ids.push(account.profileUuid);
+  return [...new Set(ids.filter(Boolean))];
 }
 
 export async function signupWithPassword(input: {
@@ -123,11 +167,12 @@ export async function signupWithPassword(input: {
     portalRole: "user",
     managerAccessStatus: input.asManagerApplicant ? "pending" : "none",
     managerRequestedAt: input.asManagerApplicant ? new Date() : null,
+    profileUuid: randomUUID(),
   });
 
   await syncPrismaProfile(doc);
 
-  const token = issueTokenForAccount(doc);
+  const token = await issueTokenForAccount(doc);
   return { token, account: toPublic(doc) };
 }
 
@@ -160,7 +205,7 @@ export async function loginWithPassword(input: {
     }
   }
 
-  const token = issueTokenForAccount(doc);
+  const token = await issueTokenForAccount(doc);
   return { token, account: toPublic(doc) };
 }
 
@@ -203,6 +248,7 @@ export async function findOrCreateLineAccount(input: {
     lineUserId,
     portalRole: "user",
     managerAccessStatus: "none",
+    profileUuid: randomUUID(),
   });
   await syncPrismaProfile(doc);
   return doc;

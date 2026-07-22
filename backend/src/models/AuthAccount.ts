@@ -28,16 +28,21 @@ const authAccountSchema = new Schema(
     managerReviewedBy: { type: String, default: null },
     /** 舊 Supabase Auth UUID，用來對到既有 Prisma User / profiles */
     legacySupabaseUserId: { type: String, default: null, index: true },
+    /**
+     * Prisma profiles.id 需要 UUID；Mongo _id 是 ObjectId（24 hex）無法寫入。
+     * JWT sub / 對外 auth id 一律用這個欄位。
+     */
+    profileUuid: { type: String, default: null, unique: true, sparse: true },
     passwordResetTokenHash: { type: String, default: null },
     passwordResetExpiresAt: { type: Date, default: null },
   },
   { timestamps: true, collection: "authAccounts" },
 );
 
-export type AuthAccountDocument = InferSchemaType<typeof authAccountSchema> & {
-  _id: mongoose.Types.ObjectId;
-};
+type AuthAccountFields = InferSchemaType<typeof authAccountSchema>;
 
-export const AuthAccount: Model<AuthAccountDocument> =
-  mongoose.models.AuthAccount ??
-  mongoose.model<AuthAccountDocument>("AuthAccount", authAccountSchema);
+export type AuthAccountDocument = mongoose.HydratedDocument<AuthAccountFields>;
+
+export const AuthAccount: Model<AuthAccountFields> =
+  (mongoose.models.AuthAccount as Model<AuthAccountFields> | undefined) ??
+  mongoose.model<AuthAccountFields>("AuthAccount", authAccountSchema);

@@ -1,7 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 import { AppError } from "../errors/AppError.js";
 import { verifyAuthToken } from "../lib/jwt.js";
-import { findAuthAccountById } from "../services/mongoAuthService.js";
+import {
+  ensureProfileUuid,
+  findAuthAccountById,
+} from "../services/mongoAuthService.js";
 
 export interface PlatformAdminUser {
   id: string;
@@ -54,9 +57,10 @@ export async function authenticatePlatformAdmin(
       throw new AppError(403, "非平台管理員，無法存取營運後台");
     }
 
+    const authUserId = await ensureProfileUuid(account);
     req.platformAdmin = {
-      id: String(account._id),
-      supabaseUserId: String(account._id),
+      id: authUserId,
+      supabaseUserId: authUserId,
       email: account.email,
       name: account.name?.trim() || account.email.split("@")[0] || "Manager",
     };

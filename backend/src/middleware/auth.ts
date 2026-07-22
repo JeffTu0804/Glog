@@ -3,6 +3,7 @@ import { AppError } from "../errors/AppError.js";
 import { prisma } from "../lib/prisma.js";
 import { verifyAuthToken } from "../lib/jwt.js";
 import {
+  ensureProfileUuid,
   findAuthAccountById,
   resolveHotelUserIds,
 } from "../services/mongoAuthService.js";
@@ -52,24 +53,26 @@ export async function authenticate(
       throw new AppError(403, "使用者尚未在系統中註冊，請聯繫管理員");
     }
 
-    // 把舊帳號的 supabaseUserId 對齊到 Mongo Auth id，之後查詢更穩
-    if (dbUser.supabaseUserId !== String(account._id)) {
+    const authUserId = await ensureProfileUuid(account);
+
+    // 把舊帳號的 supabaseUserId 對齊到穩定 auth UUID，之後查詢更穩
+    if (dbUser.supabaseUserId !== authUserId) {
       await prisma.user
         .update({
           where: { id: dbUser.id },
-          data: { supabaseUserId: String(account._id) },
+          data: { supabaseUserId: authUserId },
         })
         .catch(() => undefined);
     }
 
     if (account.lineUserId) {
-      void syncLineUserId(String(account._id), account.lineUserId);
+      void syncLineUserId(authUserId, account.lineUserId);
     }
 
     req.user = {
       id: dbUser.id,
       tenantId: dbUser.tenantId,
-      supabaseUserId: String(account._id),
+      supabaseUserId: authUserId,
       role: dbUser.role,
       email: dbUser.email,
       name: dbUser.name,

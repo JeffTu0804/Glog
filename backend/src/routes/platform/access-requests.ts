@@ -78,8 +78,11 @@ platformAccessRequestRouter.post(
       throw new AppError(400, "申請資料與剛建立的帳號不一致");
     }
 
+    const { getAuthUserId } = await import(
+      "../../services/mongoAuthService.js"
+    );
     const result = await requestManagerAccess({
-      supabaseUserId: String(account._id),
+      supabaseUserId: getAuthUserId(account),
       email,
       name,
     });

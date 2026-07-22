@@ -163,7 +163,7 @@ export async function createLineSignInLink(
     name: profile.name,
   });
 
-  const token = issueTokenForAccount(account);
+  const token = await issueTokenForAccount(account);
   const { frontendUrl } = getLineConfig();
   const params = new URLSearchParams({
     target,
