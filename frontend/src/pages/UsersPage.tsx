@@ -70,9 +70,9 @@ export function UsersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-500">
-                    {user.skills.length > 0 ? (
+                    {(user.skills ?? []).length > 0 ? (
                       <div className="flex flex-wrap gap-1">
-                        {user.skills.map((s) => (
+                        {(user.skills ?? []).map((s) => (
                           <span
                             key={s}
                             className="rounded-full bg-slate-100 px-2 py-0.5 text-xs"

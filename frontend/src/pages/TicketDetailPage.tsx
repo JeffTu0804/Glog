@@ -394,7 +394,7 @@ export function TicketDetailPage() {
             >
               {engineers.map((eng) => (
                 <option key={eng.id} value={eng.id}>
-                  {eng.name}（{eng.status === "IDLE" ? "閒置" : "忙碌"} · {eng.skills.join(", ") || "無技能標籤"}）
+                  {eng.name}（{eng.status === "IDLE" ? "閒置" : "忙碌"} · {(eng.skills ?? []).join(", ") || "無技能標籤"}）
                 </option>
               ))}
             </select>
