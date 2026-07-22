@@ -193,8 +193,17 @@ function LoginPageContent({
 
   const footerLinks =
     target === "hotel" ? (
-      <div className="mt-6 text-center text-sm">
-        <Link to="/manager/login" className="text-slate-500 hover:text-slate-900 hover:underline">
+      <div className="mt-6 space-y-2 text-center text-sm">
+        <Link
+          to="/admin/login"
+          className="block text-slate-500 hover:text-slate-900 hover:underline"
+        >
+          飯店營運團隊請前往 Admin 後台登入
+        </Link>
+        <Link
+          to="/manager/login"
+          className="block text-slate-500 hover:text-slate-900 hover:underline"
+        >
           平台營運團隊請前往 Manager 後台登入
         </Link>
       </div>
