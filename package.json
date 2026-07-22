@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "description": "Hotel Back-of-House ERP — monorepo root",
+  "engines": {
+    "node": "22.x",
+    "npm": "10.x"
+  },
   "scripts": {
     "dev": "npm run dev:backend",
     "dev:backend": "npm run dev --prefix backend",
@@ -10,6 +14,7 @@
     "build": "npm run build --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
     "start": "npm run start --prefix backend",
+    "heroku-postbuild": "npm install --prefix backend --include=dev && npm run prisma:generate --prefix backend && npm run build --prefix backend",
     "prisma:generate": "npm run prisma:generate --prefix backend",
     "prisma:migrate": "npm run prisma:migrate --prefix backend",
     "prisma:studio": "npm run prisma:studio --prefix backend",
