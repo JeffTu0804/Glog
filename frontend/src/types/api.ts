@@ -19,8 +19,8 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
-  status?: UserStatus;
-  skills?: string[];
+  status: UserStatus;
+  skills: string[];
   department?: Department;
   positionLevel?: UserPositionLevel;
   tenantId?: string;
