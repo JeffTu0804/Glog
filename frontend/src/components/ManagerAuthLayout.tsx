@@ -1,12 +1,29 @@
 import { Link } from "react-router-dom";
 
+export type AuthBrand = "manager" | "admin";
+
 interface ManagerAuthLayoutProps {
   title: string;
   subtitle?: string;
   breadcrumb: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  /** 預設 manager；admin 顯示 glog Admin / A */
+  brand?: AuthBrand;
 }
+
+const BRAND = {
+  manager: {
+    letter: "M",
+    label: "Manager",
+    href: "/manager/login",
+  },
+  admin: {
+    letter: "A",
+    label: "Admin",
+    href: "/admin/login",
+  },
+} as const;
 
 export function ManagerAuthLayout({
   title,
@@ -14,16 +31,19 @@ export function ManagerAuthLayout({
   breadcrumb,
   children,
   footer,
+  brand = "manager",
 }: ManagerAuthLayoutProps) {
+  const b = BRAND[brand];
+
   return (
     <div className="min-h-screen bg-[var(--color-glog-bg)]">
       <header className="border-b border-slate-200/60 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex max-w-lg items-center gap-2.5 px-4 py-4">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-purple-500 text-sm font-bold text-white shadow-sm">
-            M
+            {b.letter}
           </span>
-          <Link to="/manager/login" className="text-lg font-bold text-slate-900">
-            glog <span className="text-violet-600">Manager</span>
+          <Link to={b.href} className="text-lg font-bold text-slate-900">
+            glog <span className="text-violet-600">{b.label}</span>
           </Link>
         </div>
         <div className="mx-auto max-w-lg px-4 pb-3 text-sm text-slate-500">
